@@ -6,7 +6,7 @@ import { supabase, supabaseUrl } from "@/lib/supabaseClient";
 type UploadRef = { path: string; name: string };
 
 export default function WeeklyUpdate() {
-  const supabase = supabaseBrowser();
+  
 
   const [week, setWeek] = useState<number>(1);
   const [seasonId, setSeasonId] = useState<number>(2026);
