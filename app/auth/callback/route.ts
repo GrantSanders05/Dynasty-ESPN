@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) {
+  get(name: string) {
           // @ts-ignore
           return request.headers.get("cookie")?.match(new RegExp(`${name}=([^;]+)`))?.[1];
         },
