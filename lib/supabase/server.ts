@@ -1,7 +1,8 @@
 import { supabase, supabaseUrl } from "@/lib/supabaseClient";
 
-export function createServerClient() {
-  // For MVP: same client. (Later we can upgrade this to proper SSR auth cookies.)
+// Export the exact name the app imports
+export function supabaseServer() {
+  // MVP: return the same client. Later we can wire real SSR cookie auth.
   return supabase;
 }
 
