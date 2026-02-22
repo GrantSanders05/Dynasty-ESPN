@@ -47,12 +47,11 @@ if (!isCommissionerRoute) return NextResponse.next();
 
   // Not logged in → send to commissioner login
   if (!user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/commissioner/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-
+  const url = request.nextUrl.clone();
+  url.pathname = "/login";
+  url.searchParams.set("next", pathname);
+  return NextResponse.redirect(url);
+}
   // Optional: commissioner-only check via profiles.role (keep your existing logic)
   const { data: profile } = await supabase
     .from("profiles")
