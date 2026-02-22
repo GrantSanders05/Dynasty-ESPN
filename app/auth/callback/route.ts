@@ -13,16 +13,16 @@ export async function GET(request: Request) {
     {
       cookies: {
   get(name: string) {
-          // @ts-ignore
-          return request.headers.get("cookie")?.match(new RegExp(`${name}=([^;]+)`))?.[1];
-        },
-        set(name, value, options) {
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name, options) {
-          response.cookies.set({ name, value: "", ...options });
-        },
-      },
+    // @ts-ignore
+    return request.headers.get("cookie")?.match(new RegExp(`${name}=([^;]+)`))?.[1];
+  },
+  set(name: string, value: string, options?: Record<string, any>) {
+    response.cookies.set({ name, value, ...(options ?? {}) });
+  },
+  remove(name: string, options?: Record<string, any>) {
+    response.cookies.set({ name, value: "", ...(options ?? {}), maxAge: 0 });
+  },
+},
     }
   );
 
