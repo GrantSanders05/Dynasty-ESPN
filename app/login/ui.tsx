@@ -10,7 +10,8 @@ export default function LoginUI() {
     setStatus("Opening Google sign-in...");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: "https://dynasty-espn.vercel.app/auth/callback", 
+               },
     });
     if (error) setStatus(error.message);
   };
