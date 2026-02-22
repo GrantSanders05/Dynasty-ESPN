@@ -1,6 +1,7 @@
 import { supabase, supabaseUrl } from "@/lib/supabaseClient";
 
-export function createBrowserClient() {
+// Export the exact name the app imports
+export function supabaseBrowser() {
   return supabase;
 }
 
