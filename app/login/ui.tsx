@@ -6,12 +6,9 @@ import { supabase } from "@/lib/supabaseClient";
 export default function LoginUI() {
   const [status, setStatus] = useState<string>("");
 
-  const signInGoogle = async () => {
-    setStatus("Opening Google sign-in...");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: "https://dynasty-espn.vercel.app/auth/callback", 
-               },
+  <a href="/api/auth/google" style={{ padding: 12, display: "inline-block" }}>
+  Continue with Google (Commissioner)
+</a>
     });
     if (error) setStatus(error.message);
   };
