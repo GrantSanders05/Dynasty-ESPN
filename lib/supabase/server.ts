@@ -1,9 +1,24 @@
-import { supabase, supabaseUrl } from "@/lib/supabaseClient";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-// Export the exact name the app imports
 export function supabaseServer() {
-  // MVP: return the same client. Later we can wire real SSR cookie auth.
-  return supabase;
-}
+  const cookieStore = cookies();
 
-export { supabase, supabaseUrl };
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+        },
+      },
+    }
+  );
+}
