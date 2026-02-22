@@ -14,9 +14,12 @@ export async function middleware(request: NextRequest) {
   if (isPublic(pathname)) return NextResponse.next();
 
   // ✅ Only protect commissioner routes
-  const isCommissionerRoute = pathname === "/commissioner" || pathname.startsWith("/commissioner/");
-  if (!isCommissionerRoute) return NextResponse.next();
+  // ✅ Allow the commissioner login page to be public (or you'll loop forever)
+if (pathname === "/commissioner/login") return NextResponse.next();
 
+// ✅ Only protect commissioner routes
+const isCommissionerRoute = pathname === "/commissioner" || pathname.startsWith("/commissioner/");
+if (!isCommissionerRoute) return NextResponse.next();
   // Create response we can attach auth cookies to (if needed)
   const response = NextResponse.next();
 
