@@ -23,16 +23,17 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name, value, options) {
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name, options) {
-          response.cookies.set({ name, value: "", ...options });
-        },
-      },
+  get(name: string) {
+    return request.cookies.get(name)?.value;
+  },
+  set(name: string, value: string, options?: Record<string, any>) {
+    // middleware can't actually set cookies on the request,
+    // but some libraries expect this interface to exist.
+  },
+  remove(name: string, options?: Record<string, any>) {
+    // same as above - noop placeholder
+  },
+},
     }
   );
 
