@@ -63,7 +63,7 @@ export default function WeeklyUpdate() {
     const jwt = session.session?.access_token;
     if (!jwt) { setStatus("Not signed in."); return; }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/publish_weekly`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/publish_weekly`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
