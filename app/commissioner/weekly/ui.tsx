@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
+import { supabase, supabaseUrl } from "@/lib/supabaseClient";
 type UploadRef = { path: string; name: string };
 
 export default function WeeklyUpdate() {
@@ -36,7 +36,7 @@ export default function WeeklyUpdate() {
     const jwt = session.session?.access_token;
     if (!jwt) { setStatus("Not signed in."); return; }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process_weekly`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/process_weekly`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
