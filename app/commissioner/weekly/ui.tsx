@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/browser";
 import { supabase, supabaseUrl } from "@/lib/supabaseClient";
+
 type UploadRef = { path: string; name: string };
 
 export default function WeeklyUpdate() {
