@@ -15,10 +15,12 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
 
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo }
-    });
+    const { error } = await supabase.auth.signInWithOAuth({
+  provider: "google",
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+  },
+});
 
     if (error) {
       setStatus("error");
