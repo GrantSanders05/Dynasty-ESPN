@@ -10,13 +10,21 @@ import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
-
-// Commissioner email (FIXED)
 const COMMISH_EMAIL = "grantssanders05@gmail.com".toLowerCase();
+
+// Never let auth checks hang the UI
+function withTimeout(promise, ms = 1500) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Auth timeout")), ms)),
+  ]);
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+
+  // Start as NOT loading so the login form always shows.
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [teams, setTeams] = useState([]);
 
@@ -43,7 +51,7 @@ export default function App() {
     setError(msg);
     setNotice("");
     window.clearTimeout(flashError._t);
-    flashError._t = window.setTimeout(() => setError(""), 8000);
+    flashError._t = window.setTimeout(() => setError(""), 9000);
   }
 
   async function loadTeams() {
@@ -52,22 +60,28 @@ export default function App() {
       .select("*")
       .order("rank", { ascending: true })
       .order("name", { ascending: true });
+
     if (!res.error) setTeams(res.data || []);
   }
 
   async function refreshSession() {
+    // Show a tiny loading pill, but do NOT block the login UI.
     setAuthLoading(true);
+
     try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.warn("getSession error:", error);
-        flashError("Auth session error. Check Vercel env vars.");
-      }
+      const { data } = await withTimeout(supabase.auth.getSession(), 1500);
       setUser(data?.session?.user ?? null);
     } catch (e) {
-      console.warn("refreshSession fatal:", e);
+      console.warn("refreshSession:", e?.message || e);
+      // If this happens, the page should still be usable (login form still visible).
+      // Common causes: Supabase URL config / env var mismatch, or blocked storage.
       setUser(null);
-      flashError("Auth failed to initialize.");
+      flashError(
+        "Auth check timed out. If this keeps happening: " +
+          "1) Hard refresh (Ctrl+Shift+R), " +
+          "2) Try Incognito, " +
+          "3) Confirm Supabase Auth → URL Configuration has your Vercel URL."
+      );
     } finally {
       setAuthLoading(false);
     }
@@ -77,41 +91,42 @@ export default function App() {
     refreshSession();
     loadTeams();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
-      await refreshSession();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      refreshSession();
     });
 
-    const t = window.setTimeout(() => setAuthLoading(false), 2000);
-
-    return () => {
-      window.clearTimeout(t);
-      sub?.subscription?.unsubscribe?.();
-    };
+    return () => sub?.subscription?.unsubscribe?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInOrUp(e) {
     e.preventDefault();
     if (!email || !password) return flashError("Enter email and password.");
 
+    setAuthLoading(true);
     try {
       if (authMode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        flashNotice("Signed up! Check email if confirmations enabled.");
+        flashNotice("Signed up! Check email if confirmations are enabled.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         flashNotice("Signed in.");
       }
+
       setEmail("");
       setPassword("");
       await refreshSession();
     } catch (err) {
       flashError(err?.message || "Auth error.");
+    } finally {
+      setAuthLoading(false);
     }
   }
 
   async function signOut() {
+    setAuthLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -119,6 +134,8 @@ export default function App() {
       setUser(null);
     } catch (err) {
       flashError(err?.message || "Sign out failed.");
+    } finally {
+      setAuthLoading(false);
     }
   }
 
