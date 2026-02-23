@@ -27,6 +27,7 @@ export default function Home({ supabase, isCommish }) {
   const [aTitle, setATitle] = useState("");
   const [aWeek, setAWeek] = useState("");
   const [aAuthor, setAAuthor] = useState("");
+  const [selectedTeamIds, setSelectedTeamIds] = useState([]);
   const [aBody, setABody] = useState("");
   const [savingArticle, setSavingArticle] = useState(false);
 
@@ -114,14 +115,18 @@ export default function Home({ supabase, isCommish }) {
 
     setSavingArticle(true);
     try {
-      const { error } = await supabase.from("articles").insert({
+      const { data: inserted, error } = await supabase
+        .from("articles")
+        .insert({
         title: aTitle.trim(),
         body: aBody.trim(),
         week: aWeek ? Number(aWeek) : null,
         author: aAuthor.trim() || null,
         is_published: true,
         is_featured: false,
-      });
+      })
+        .select("*")
+        .single();
       if (error) throw error;
 
       flashNotice("Article posted.");
@@ -129,6 +134,7 @@ export default function Home({ supabase, isCommish }) {
       setAWeek("");
       setAAuthor("");
       setABody("");
+      setSelectedTeamIds([]);
       await loadAll();
     } catch (e) {
       flashError(e?.message || "Failed to post article.");
