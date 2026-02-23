@@ -1,9 +1,17 @@
 import React, { useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 
-export default function Navbar({ appTitle, teams = [], userEmail, isCommish, onSignOut, authSlot }) {
+export default function Navbar({
+  appTitle,
+  teams = [],
+  userEmail,
+  isCommish,
+  onSignOut,
+  authSlot,
+  authLoading,
+}) {
   const [open, setOpen] = useState(false);
-  const teamLinks = useMemo(() => (teams || []).map(t => ({ name: t.name, slug: t.slug })), [teams]);
+  const teamLinks = useMemo(() => (teams || []).map((t) => ({ name: t.name, slug: t.slug })), [teams]);
 
   return (
     <header className="topbar">
@@ -23,20 +31,15 @@ export default function Navbar({ appTitle, teams = [], userEmail, isCommish, onS
         </NavLink>
 
         <div className="dropdown" onMouseLeave={() => setOpen(false)}>
-          <button className="navBtn" type="button" onClick={() => setOpen(v => !v)}>
+          <button className="navBtn" type="button" onClick={() => setOpen((v) => !v)}>
             Teams <span className="chev">▾</span>
           </button>
 
           {open && (
             <div className="menu" role="menu">
               {teamLinks.length ? (
-                teamLinks.map(t => (
-                  <Link
-                    key={t.slug}
-                    to={`/teams/${t.slug}`}
-                    className="menuItem"
-                    onClick={() => setOpen(false)}
-                  >
+                teamLinks.map((t) => (
+                  <Link key={t.slug} to={`/teams/${t.slug}`} className="menuItem" onClick={() => setOpen(false)}>
                     {t.name}
                   </Link>
                 ))
@@ -56,7 +59,9 @@ export default function Navbar({ appTitle, teams = [], userEmail, isCommish, onS
       </nav>
 
       <div className="authBox">
-        {authSlot ? (
+        {authLoading ? (
+          <div className="pill">Loading…</div>
+        ) : authSlot ? (
           authSlot
         ) : userEmail ? (
           <div className="authSignedIn">
@@ -67,7 +72,9 @@ export default function Navbar({ appTitle, teams = [], userEmail, isCommish, onS
               Sign out
             </button>
           </div>
-        ) : null}
+        ) : (
+          <div className="pill">Not signed in</div>
+        )}
       </div>
     </header>
   );
