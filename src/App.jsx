@@ -35,21 +35,14 @@ export default function App() {
     setError(msg);
     setNotice("");
     window.clearTimeout(flashError._t);
-    flashError._t = window.setTimeout(() => setError(""), 6000);
+    flashError._t = window.setTimeout(() => setError(""), 7000);
   }
 
   async function loadTeams() {
-    const res = await supabase
-      .from("teams")
-      .select("*")
-      .order("rank", { ascending: true })
-      .order("name", { ascending: true });
-
+    const res = await supabase.from("teams").select("*").order("rank", { ascending: true }).order("name", { ascending: true });
     if (!res.error) setTeams(res.data || []);
   }
 
-  // IMPORTANT: getSession() reads local storage FIRST, so refresh won't "lose" the user
-  // even if getUser() network call hasn't completed yet.
   async function refreshUserAndRole() {
     setAuthLoading(true);
     try {
@@ -66,7 +59,6 @@ export default function App() {
         return;
       }
 
-      // Can we see a commissioner row for this email?
       const { data: cRow, error: cErr } = await supabase
         .from("commissioners")
         .select("email")
@@ -74,11 +66,16 @@ export default function App() {
         .maybeSingle();
 
       if (cErr) {
-        // If you see this error, it's usually an RLS/policy issue on commissioners table
         console.warn("commissioners select error:", cErr);
+        flashError("Signed in, but commissioner check failed (RLS). Run the commissioner RLS fix SQL.");
       }
 
       setIsCommish(!!cRow);
+    } catch (e) {
+      console.warn("refreshUserAndRole fatal:", e);
+      flashError("Auth failed to initialize. Check Vercel env vars and Supabase Auth URL settings.");
+      setUser(null);
+      setIsCommish(false);
     } finally {
       setAuthLoading(false);
     }
@@ -110,7 +107,6 @@ export default function App() {
         flashNotice("Signed in.");
       }
 
-      // Important: refresh state after auth
       setEmail("");
       setPassword("");
       await refreshUserAndRole();
@@ -134,14 +130,7 @@ export default function App() {
   const authSlot =
     !authLoading && !user ? (
       <form className="authForm" onSubmit={signInOrUp}>
-        <input
-          className="input"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="email"
-          type="email"
-          autoComplete="email"
-        />
+        <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" type="email" autoComplete="email" />
         <input
           className="input"
           value={password}
@@ -169,6 +158,7 @@ export default function App() {
           isCommish={isCommish}
           onSignOut={signOut}
           authSlot={authSlot}
+          authLoading={authLoading}
         />
 
         <Banner notice={notice} error={error} />
