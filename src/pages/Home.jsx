@@ -1,259 +1,335 @@
 import React, { useEffect, useMemo, useState } from "react";
-import ArticleCard from "../components/ArticleCard.jsx";
+
+/**
+ * Home page (FIXED): makes commissioner uploads (headlines + articles) never silent.
+ * - Shows success/error banners
+ * - Displays the exact Supabase error if RLS blocks inserts
+ *
+ * Expects tables:
+ *  - headlines(id, text, link, priority, created_at)
+ *  - articles(id, title, body, week, author, is_published, is_featured, created_at)
+ *
+ * NOTE: Run fix_articles_headlines_rls.sql if you get RLS errors.
+ */
 
 export default function Home({ supabase, isCommish, teams }) {
+  const [loading, setLoading] = useState(true);
+
   const [headlines, setHeadlines] = useState([]);
   const [articles, setArticles] = useState([]);
-  const [episodes, setEpisodes] = useState([]);
 
-  const [newHeadline, setNewHeadline] = useState({ text: "", link: "", priority: 50 });
-  const [newArticle, setNewArticle] = useState({
-    title: "",
-    body: "",
-    week_label: "",
-    author: "",
-    published: true,
-    is_featured: false,
-    team_slug: "",
-  });
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
-  const featuredArticle = useMemo(() => articles.find(a => a.is_featured) || null, [articles]);
-  const otherArticles = useMemo(() => articles.filter(a => !a.is_featured), [articles]);
+  // Headline form
+  const [hlText, setHlText] = useState("");
+  const [hlLink, setHlLink] = useState("");
+  const [hlPriority, setHlPriority] = useState(1);
+  const [savingHeadline, setSavingHeadline] = useState(false);
 
-  async function load() {
-    const [hRes, aRes, eRes] = await Promise.all([
-      supabase.from("headlines").select("*").order("priority", { ascending: true }).order("created_at", { ascending: false }),
-      supabase.from("articles").select("*").order("is_featured", { ascending: false }).order("created_at", { ascending: false }),
-      supabase.from("podcast_episodes").select("*").order("created_at", { ascending: false }).limit(1),
-    ]);
-    if (!hRes.error) setHeadlines(hRes.data || []);
-    if (!aRes.error) setArticles(aRes.data || []);
-    if (!eRes.error) setEpisodes(eRes.data || []);
+  // Article form
+  const [aTitle, setATitle] = useState("");
+  const [aWeek, setAWeek] = useState("");
+  const [aAuthor, setAAuthor] = useState("");
+  const [aBody, setABody] = useState("");
+  const [savingArticle, setSavingArticle] = useState(false);
+
+  const weekLabel = useMemo(() => (aWeek ? `Week ${aWeek}` : "Week"), [aWeek]);
+
+  function flashNotice(msg) {
+    setNotice(msg);
+    setError("");
+    window.clearTimeout(flashNotice._t);
+    flashNotice._t = window.setTimeout(() => setNotice(""), 3500);
+  }
+  function flashError(msg) {
+    setError(msg);
+    setNotice("");
+    window.clearTimeout(flashError._t);
+    flashError._t = window.setTimeout(() => setError(""), 9000);
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadAll() {
+    setLoading(true);
 
-  async function addHeadline(e) {
-    e.preventDefault();
-    if (!isCommish) return;
-    if (!newHeadline.text.trim()) return;
+    const h = await supabase
+      .from("headlines")
+      .select("*")
+      .order("priority", { ascending: true })
+      .order("created_at", { ascending: false });
 
-    await supabase.from("headlines").insert([{
-      text: newHeadline.text.trim(),
-      link: newHeadline.link.trim() || null,
-      priority: Number(newHeadline.priority) || 50,
-    }]);
+    if (h.error) flashError(`Headlines: ${h.error.message}`);
+    setHeadlines(h.data || []);
 
-    setNewHeadline({ text: "", link: "", priority: 50 });
-    await load();
+    const a = await supabase
+      .from("articles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (a.error) flashError(`Articles: ${a.error.message}`);
+    setArticles(a.data || []);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function addHeadline() {
+    if (!isCommish) return flashError("Commissioner only.");
+    if (!hlText.trim()) return flashError("Headline text is required.");
+
+    setSavingHeadline(true);
+    try {
+      const { error } = await supabase.from("headlines").insert({
+        text: hlText.trim(),
+        link: hlLink.trim() || null,
+        priority: Number(hlPriority) || 1,
+      });
+      if (error) throw error;
+
+      flashNotice("Headline posted.");
+      setHlText("");
+      setHlLink("");
+      setHlPriority(1);
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to post headline.");
+      console.error("headline insert:", e);
+    } finally {
+      setSavingHeadline(false);
+    }
   }
 
   async function deleteHeadline(id) {
-    if (!isCommish) return;
-    await supabase.from("headlines").delete().eq("id", id);
-    await load();
+    if (!isCommish) return flashError("Commissioner only.");
+    if (!confirm("Delete this headline?")) return;
+
+    try {
+      const { error } = await supabase.from("headlines").delete().eq("id", id);
+      if (error) throw error;
+      flashNotice("Headline deleted.");
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to delete headline.");
+    }
   }
 
-  async function setFeatured(id) {
-    if (!isCommish) return;
-    await supabase.from("articles").update({ is_featured: false }).eq("is_featured", true);
-    await supabase.from("articles").update({ is_featured: true }).eq("id", id);
-    await load();
+  async function addArticle() {
+    if (!isCommish) return flashError("Commissioner only.");
+    if (!aTitle.trim()) return flashError("Article title is required.");
+    if (!aBody.trim()) return flashError("Article body is required.");
+
+    setSavingArticle(true);
+    try {
+      const { error } = await supabase.from("articles").insert({
+        title: aTitle.trim(),
+        body: aBody.trim(),
+        week: aWeek ? Number(aWeek) : null,
+        author: aAuthor.trim() || null,
+        is_published: true,
+        is_featured: false,
+      });
+      if (error) throw error;
+
+      flashNotice("Article posted.");
+      setATitle("");
+      setAWeek("");
+      setAAuthor("");
+      setABody("");
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to post article.");
+      console.error("article insert:", e);
+    } finally {
+      setSavingArticle(false);
+    }
+  }
+
+  async function toggleFeatured(id, is_featured) {
+    if (!isCommish) return flashError("Commissioner only.");
+    try {
+      const { error } = await supabase.from("articles").update({ is_featured: !is_featured }).eq("id", id);
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to update.");
+    }
+  }
+
+  async function togglePublished(id, is_published) {
+    if (!isCommish) return flashError("Commissioner only.");
+    try {
+      const { error } = await supabase.from("articles").update({ is_published: !is_published }).eq("id", id);
+      if (error) throw error;
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to update.");
+    }
   }
 
   async function deleteArticle(id) {
-    if (!isCommish) return;
-    await supabase.from("articles").delete().eq("id", id);
-    await load();
-  }
+    if (!isCommish) return flashError("Commissioner only.");
+    if (!confirm("Delete this article?")) return;
 
-  async function togglePublish(id, published) {
-    if (!isCommish) return;
-    await supabase.from("articles").update({ published }).eq("id", id);
-    await load();
-  }
-
-  async function addArticle(e) {
-    e.preventDefault();
-    if (!isCommish) return;
-    if (!newArticle.title.trim() || !newArticle.body.trim()) return;
-
-    if (newArticle.is_featured) {
-      await supabase.from("articles").update({ is_featured: false }).eq("is_featured", true);
+    try {
+      const { error } = await supabase.from("articles").delete().eq("id", id);
+      if (error) throw error;
+      flashNotice("Article deleted.");
+      await loadAll();
+    } catch (e) {
+      flashError(e?.message || "Failed to delete article.");
     }
-
-    const ins = await supabase.from("articles").insert([{
-      title: newArticle.title.trim(),
-      body: newArticle.body.trim(),
-      week_label: newArticle.week_label.trim() || null,
-      author: newArticle.author.trim() || null,
-      published: !!newArticle.published,
-      is_featured: !!newArticle.is_featured,
-    }]).select("id").single();
-
-    if (!ins.error && newArticle.team_slug) {
-      const team = (teams || []).find(t => t.slug === newArticle.team_slug);
-      if (team) {
-        await supabase.from("article_team_map").insert([{ article_id: ins.data.id, team_id: team.id }]);
-      }
-    }
-
-    setNewArticle({
-      title: "",
-      body: "",
-      week_label: "",
-      author: "",
-      published: true,
-      is_featured: false,
-      team_slug: "",
-    });
-    await load();
   }
 
   return (
-    <main className="layout">
-      <section className="rail">
-        <div className="card">
-          <div className="cardHeader">
-            <h2>Headlines</h2>
-            <button className="btn small" type="button" onClick={load}>Refresh</button>
-          </div>
+    <main className="page">
+      <div className="pageHeader">
+        <h1>Home</h1>
+        <div className="muted">Headlines, stories, and weekly coverage.</div>
+      </div>
 
-          {isCommish && (
-            <form className="form" onSubmit={addHeadline}>
-              <input className="input" placeholder="Headline text" value={newHeadline.text}
-                onChange={(e) => setNewHeadline(s => ({ ...s, text: e.target.value }))} />
-              <input className="input" placeholder="Optional link (https://…)" value={newHeadline.link}
-                onChange={(e) => setNewHeadline(s => ({ ...s, link: e.target.value }))} />
-              <div className="row">
-                <input className="input" type="number" min="1" max="999" placeholder="Priority"
-                  value={newHeadline.priority}
-                  onChange={(e) => setNewHeadline(s => ({ ...s, priority: e.target.value }))} />
-                <button className="btn primary" type="submit">Add</button>
+      {(notice || error) && (
+        <div className="stack" style={{ marginBottom: 12 }}>
+          {notice ? <div className="banner ok">{notice}</div> : null}
+          {error ? <div className="banner err">{error}</div> : null}
+        </div>
+      )}
+
+      {/* Headlines */}
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="cardHeader">
+          <h2>Headlines</h2>
+          <div className="muted">{loading ? "Loading..." : `${headlines.length} total`}</div>
+        </div>
+
+        {isCommish ? (
+          <div className="grid2" style={{ marginBottom: 12 }}>
+            <div>
+              <label className="label">Headline</label>
+              <input className="input" value={hlText} onChange={(e) => setHlText(e.target.value)} placeholder="Big Week 5 matchup..." />
+              <label className="label" style={{ marginTop: 10 }}>Link (optional)</label>
+              <input className="input" value={hlLink} onChange={(e) => setHlLink(e.target.value)} placeholder="https://..." />
+            </div>
+            <div>
+              <label className="label">Priority (1 = top)</label>
+              <input className="input" type="number" value={hlPriority} onChange={(e) => setHlPriority(e.target.value)} />
+              <div style={{ marginTop: 10 }}>
+                <button className="btn primary" type="button" disabled={savingHeadline} onClick={addHeadline}>
+                  {savingHeadline ? "Posting..." : "Post Headline"}
+                </button>
               </div>
-            </form>
-          )}
+              <div className="muted" style={{ marginTop: 10 }}>
+                If this fails with RLS, run <strong>fix_articles_headlines_rls.sql</strong>.
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-          <ul className="list">
-            {headlines.map(h => (
-              <li key={h.id} className="listItem">
-                <div className="headlineRow">
-                  {h.link ? <a className="link" href={h.link} target="_blank" rel="noreferrer">{h.text}</a> : <span>{h.text}</span>}
-                  {isCommish && <button className="btn tiny danger" type="button" onClick={() => deleteHeadline(h.id)}>Delete</button>}
+        {loading ? (
+          <div className="muted">Loading headlines…</div>
+        ) : headlines.length === 0 ? (
+          <div className="muted">No headlines yet.</div>
+        ) : (
+          <div className="list">
+            {headlines.map((h) => (
+              <div className="listItem" key={h.id}>
+                <div className="listMain">
+                  <div className="listTitle">
+                    {h.link ? (
+                      <a href={h.link} target="_blank" rel="noreferrer">{h.text}</a>
+                    ) : (
+                      h.text
+                    )}
+                  </div>
+                  <div className="muted">Priority: {h.priority ?? 1}</div>
                 </div>
-              </li>
-            ))}
-            {!headlines.length && <li className="muted">No headlines yet.</li>}
-          </ul>
-        </div>
-
-        <div className="ticker">
-          <div className="tickerLabel">LIVE</div>
-          <div className="tickerText">
-            {headlines.length ? headlines.map(h => h.text).join(" • ") : "Add your first headline to start the ticker."}
-          </div>
-        </div>
-      </section>
-
-      <section className="main">
-        <div className="card">
-          <div className="cardHeader"><h2>Top Story</h2></div>
-
-          {featuredArticle ? (
-            <article className="feature">
-              <div className="kicker">FEATURED</div>
-              <h3 className="featureTitle">{featuredArticle.title}</h3>
-              <p className="featureBody">{featuredArticle.body}</p>
-              {isCommish && (
-                <div className="actions">
-                  <button className="btn danger" type="button" onClick={() => deleteArticle(featuredArticle.id)}>Delete</button>
-                  <button className="btn" type="button" onClick={() => togglePublish(featuredArticle.id, !featuredArticle.published)}>
-                    {featuredArticle.published ? "Unpublish" : "Publish"}
-                  </button>
-                </div>
-              )}
-            </article>
-          ) : (
-            <div className="muted">No featured story yet.</div>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="cardHeader"><h2>More Stories</h2></div>
-          <div className="grid">
-            {otherArticles.map(a => (
-              <ArticleCard
-                key={a.id}
-                a={a}
-                isCommish={isCommish}
-                onFeature={setFeatured}
-                onDelete={deleteArticle}
-                onPublishToggle={togglePublish}
-              />
-            ))}
-            {!otherArticles.length && <div className="muted">No stories yet.</div>}
-          </div>
-        </div>
-
-        {isCommish && (
-          <div className="card">
-            <div className="cardHeader"><h2>Commissioner: Post Article</h2></div>
-
-            <form className="form" onSubmit={addArticle}>
-              <input className="input" placeholder="Title" value={newArticle.title}
-                onChange={(e) => setNewArticle(s => ({ ...s, title: e.target.value }))} />
-
-              <div className="row">
-                <input className="input" placeholder="Week label (ex: Week 4)" value={newArticle.week_label}
-                  onChange={(e) => setNewArticle(s => ({ ...s, week_label: e.target.value }))} />
-                <input className="input" placeholder="Author (optional)" value={newArticle.author}
-                  onChange={(e) => setNewArticle(s => ({ ...s, author: e.target.value }))} />
+                {isCommish ? (
+                  <div className="listActions">
+                    <button className="btn danger" type="button" onClick={() => deleteHeadline(h.id)}>Delete</button>
+                  </div>
+                ) : null}
               </div>
-
-              <div className="row">
-                <select className="input" value={newArticle.team_slug}
-                  onChange={(e) => setNewArticle(s => ({ ...s, team_slug: e.target.value }))}>
-                  <option value="">Tag a team (optional)</option>
-                  {(teams || []).map(t => <option key={t.id} value={t.slug}>{t.name}</option>)}
-                </select>
-
-                <label className="check">
-                  <input type="checkbox" checked={newArticle.is_featured}
-                    onChange={(e) => setNewArticle(s => ({ ...s, is_featured: e.target.checked }))} />
-                  Feature
-                </label>
-                <label className="check">
-                  <input type="checkbox" checked={newArticle.published}
-                    onChange={(e) => setNewArticle(s => ({ ...s, published: e.target.checked }))} />
-                  Published
-                </label>
-
-                <button className="btn primary" type="submit">Post</button>
-              </div>
-
-              <textarea className="textarea" rows={10} placeholder="Paste your article…"
-                value={newArticle.body}
-                onChange={(e) => setNewArticle(s => ({ ...s, body: e.target.value }))} />
-            </form>
+            ))}
           </div>
         )}
       </section>
 
-      <section className="rail">
-        <div className="card">
-          <div className="cardHeader"><h2>Podcast</h2></div>
-
-          {episodes.length ? (
-            <div className="episode">
-              <div className="episodeTitle">{episodes[0].title}</div>
-              {episodes[0].description && <div className="episodeDesc">{episodes[0].description}</div>}
-              {episodes[0].public_url ? <audio controls src={episodes[0].public_url} style={{ width: "100%" }} /> : <div className="muted">Missing audio URL.</div>}
-              <div className="muted">View all episodes on the Podcast page.</div>
-            </div>
-          ) : (
-            <div className="muted">No episodes yet.</div>
-          )}
+      {/* Articles */}
+      <section className="card">
+        <div className="cardHeader">
+          <h2>Articles</h2>
+          <div className="muted">{loading ? "Loading..." : `${articles.length} total`}</div>
         </div>
+
+        {isCommish ? (
+          <div className="grid2" style={{ marginBottom: 12 }}>
+            <div>
+              <label className="label">Title</label>
+              <input className="input" value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="Week 5 Power Rankings" />
+
+              <div className="grid2" style={{ marginTop: 10 }}>
+                <div>
+                  <label className="label">{weekLabel} (optional)</label>
+                  <input className="input" type="number" value={aWeek} onChange={(e) => setAWeek(e.target.value)} placeholder="5" />
+                </div>
+                <div>
+                  <label className="label">Author (optional)</label>
+                  <input className="input" value={aAuthor} onChange={(e) => setAAuthor(e.target.value)} placeholder="Commissioner" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Body (paste your article)</label>
+              <textarea className="input" style={{ minHeight: 140 }} value={aBody} onChange={(e) => setABody(e.target.value)} placeholder="Paste article text here..." />
+              <div style={{ marginTop: 10 }}>
+                <button className="btn primary" type="button" disabled={savingArticle} onClick={addArticle}>
+                  {savingArticle ? "Posting..." : "Post Article"}
+                </button>
+              </div>
+              <div className="muted" style={{ marginTop: 10 }}>
+                If this fails with RLS, run <strong>fix_articles_headlines_rls.sql</strong>.
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="muted">Loading articles…</div>
+        ) : articles.length === 0 ? (
+          <div className="muted">No articles yet.</div>
+        ) : (
+          <div className="list">
+            {articles.map((a) => (
+              <div className="listItem" key={a.id}>
+                <div className="listMain">
+                  <div className="listTitle">{a.title}</div>
+                  <div className="muted">
+                    {a.week ? `Week ${a.week}` : "No week"} • {a.author || "No author"}
+                    {a.is_featured ? " • Featured" : ""}
+                    {!a.is_published ? " • Unpublished" : ""}
+                  </div>
+                  <div className="muted" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                    {a.body}
+                  </div>
+                </div>
+
+                {isCommish ? (
+                  <div className="listActions">
+                    <button className="btn" type="button" onClick={() => toggleFeatured(a.id, a.is_featured)}>Feature</button>
+                    <button className="btn" type="button" onClick={() => togglePublished(a.id, a.is_published)}>
+                      {a.is_published ? "Unpublish" : "Publish"}
+                    </button>
+                    <button className="btn danger" type="button" onClick={() => deleteArticle(a.id)}>Delete</button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
