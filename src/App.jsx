@@ -11,8 +11,8 @@ import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
 
-// CHANGE THIS if your commissioner email is different:
-const COMMISH_EMAIL = "grantsanders05@gmail.com".toLowerCase();
+// Commissioner email (FIXED)
+const COMMISH_EMAIL = "grantssanders05@gmail.com".toLowerCase();
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -23,11 +23,10 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const [authMode, setAuthMode] = useState("signin"); // signin | signup
+  const [authMode, setAuthMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Commissioner is decided locally by email (NO database query, NO RLS dependency)
   const isCommish = useMemo(() => {
     const e = (user?.email || "").toLowerCase();
     return !!e && e === COMMISH_EMAIL;
@@ -39,6 +38,7 @@ export default function App() {
     window.clearTimeout(flashNotice._t);
     flashNotice._t = window.setTimeout(() => setNotice(""), 3500);
   }
+
   function flashError(msg) {
     setError(msg);
     setNotice("");
@@ -56,19 +56,18 @@ export default function App() {
   }
 
   async function refreshSession() {
-    // Never let the UI get stuck on "Loading…"
     setAuthLoading(true);
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) {
         console.warn("getSession error:", error);
-        flashError("Auth session error. Check Vercel env vars (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).");
+        flashError("Auth session error. Check Vercel env vars.");
       }
       setUser(data?.session?.user ?? null);
     } catch (e) {
       console.warn("refreshSession fatal:", e);
       setUser(null);
-      flashError("Auth failed to initialize. Check Supabase URL config + env vars.");
+      flashError("Auth failed to initialize.");
     } finally {
       setAuthLoading(false);
     }
@@ -82,14 +81,12 @@ export default function App() {
       await refreshSession();
     });
 
-    // Safety timeout: if anything weird happens, stop "Loading…" after 2 seconds
     const t = window.setTimeout(() => setAuthLoading(false), 2000);
 
     return () => {
       window.clearTimeout(t);
       sub?.subscription?.unsubscribe?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInOrUp(e) {
@@ -100,7 +97,7 @@ export default function App() {
       if (authMode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        flashNotice("Signed up! If email confirmation is enabled, check your inbox.");
+        flashNotice("Signed up! Check email if confirmations enabled.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -176,22 +173,11 @@ export default function App() {
           <Route path="/social" element={<Social supabase={supabase} isCommish={isCommish} />} />
           <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
           <Route path="/teams/:slug" element={<Team supabase={supabase} isCommish={isCommish} />} />
-          <Route
-            path="*"
-            element={
-              <main className="page">
-                <div className="pageHeader">
-                  <h1>Not Found</h1>
-                  <div className="muted">That page doesn't exist.</div>
-                </div>
-              </main>
-            }
-          />
         </Routes>
 
         <footer className="footer">
           <div className="muted">
-            Commissioner is: <strong>grantsanders05@gmail.com</strong>. (This is enforced by RLS in Supabase and by this UI.)
+            Commissioner email: <strong>grantssanders05@gmail.com</strong>
           </div>
         </footer>
       </div>
