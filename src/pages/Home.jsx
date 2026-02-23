@@ -12,7 +12,7 @@ export default function Home({ supabase, isCommish }) {
   const [loading, setLoading] = useState(true);
 
   const [headlines, setHeadlines] = useState([]);
-  const \[articles, setArticles\] = useState\(\[\]\);
+  const [articles, setArticles] = useState([]);
 
   const [teams, setTeams] = useState([]);
 
