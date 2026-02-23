@@ -184,6 +184,28 @@ a{color:inherit}
   background:linear-gradient(180deg,rgba(43,212,106,.10),rgba(255,255,255,.02));
   border-radius:18px;padding:16px;margin-bottom:14px;
 }
+
+.teamHeroHeader{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.teamLogoHero{
+  width:220px;height:220px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(0,0,0,.18);
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+}
+.teamLogoImg{width:100%;height:100%;object-fit:contain;padding:14px}
+.teamHeroText{flex:1;min-width:220px}
+.teamNameBig{font-size:40px;line-height:1.05}
+.teamHeroActions{margin-left:auto}
+.teamHeroEdit{margin-top:14px}
+@media (max-width:600px){
+  .teamLogoHero{width:180px;height:180px}
+  .teamNameBig{font-size:32px}
+  .teamHeroActions{width:100%}
+  .teamHeroActions .btn{width:100%}
+}
 .teamName{font-size:26px;font-weight:1000;letter-spacing:.01em}
 .teamMeta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
