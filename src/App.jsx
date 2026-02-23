@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./supabaseClient.js";
 import Navbar from "./components/Navbar.jsx";
@@ -11,9 +11,11 @@ import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
 
+// CHANGE THIS if your commissioner email is different:
+const COMMISH_EMAIL = "grantsanders05@gmail.com".toLowerCase();
+
 export default function App() {
   const [user, setUser] = useState(null);
-  const [isCommish, setIsCommish] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [teams, setTeams] = useState([]);
@@ -25,6 +27,12 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Commissioner is decided locally by email (NO database query, NO RLS dependency)
+  const isCommish = useMemo(() => {
+    const e = (user?.email || "").toLowerCase();
+    return !!e && e === COMMISH_EMAIL;
+  }, [user]);
+
   function flashNotice(msg) {
     setNotice(msg);
     setError("");
@@ -35,61 +43,53 @@ export default function App() {
     setError(msg);
     setNotice("");
     window.clearTimeout(flashError._t);
-    flashError._t = window.setTimeout(() => setError(""), 7000);
+    flashError._t = window.setTimeout(() => setError(""), 8000);
   }
 
   async function loadTeams() {
-    const res = await supabase.from("teams").select("*").order("rank", { ascending: true }).order("name", { ascending: true });
+    const res = await supabase
+      .from("teams")
+      .select("*")
+      .order("rank", { ascending: true })
+      .order("name", { ascending: true });
     if (!res.error) setTeams(res.data || []);
   }
 
-  async function refreshUserAndRole() {
+  async function refreshSession() {
+    // Never let the UI get stuck on "Loading…"
     setAuthLoading(true);
     try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr) console.warn("getSession error:", sessionErr);
-
-      const session = sessionData?.session ?? null;
-      const u = session?.user ?? null;
-
-      setUser(u);
-
-      if (!u?.email) {
-        setIsCommish(false);
-        return;
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.warn("getSession error:", error);
+        flashError("Auth session error. Check Vercel env vars (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).");
       }
-
-      const { data: cRow, error: cErr } = await supabase
-        .from("commissioners")
-        .select("email")
-        .eq("email", u.email)
-        .maybeSingle();
-
-      if (cErr) {
-        console.warn("commissioners select error:", cErr);
-        flashError("Signed in, but commissioner check failed (RLS). Run the commissioner RLS fix SQL.");
-      }
-
-      setIsCommish(!!cRow);
+      setUser(data?.session?.user ?? null);
     } catch (e) {
-      console.warn("refreshUserAndRole fatal:", e);
-      flashError("Auth failed to initialize. Check Vercel env vars and Supabase Auth URL settings.");
+      console.warn("refreshSession fatal:", e);
       setUser(null);
-      setIsCommish(false);
+      flashError("Auth failed to initialize. Check Supabase URL config + env vars.");
     } finally {
       setAuthLoading(false);
     }
   }
 
   useEffect(() => {
-    refreshUserAndRole();
+    refreshSession();
     loadTeams();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async () => {
-      await refreshUserAndRole();
+      await refreshSession();
     });
 
-    return () => sub?.subscription?.unsubscribe?.();
+    // Safety timeout: if anything weird happens, stop "Loading…" after 2 seconds
+    const t = window.setTimeout(() => setAuthLoading(false), 2000);
+
+    return () => {
+      window.clearTimeout(t);
+      sub?.subscription?.unsubscribe?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInOrUp(e) {
@@ -106,10 +106,9 @@ export default function App() {
         if (error) throw error;
         flashNotice("Signed in.");
       }
-
       setEmail("");
       setPassword("");
-      await refreshUserAndRole();
+      await refreshSession();
     } catch (err) {
       flashError(err?.message || "Auth error.");
     }
@@ -121,32 +120,41 @@ export default function App() {
       if (error) throw error;
       flashNotice("Signed out.");
       setUser(null);
-      setIsCommish(false);
     } catch (err) {
       flashError(err?.message || "Sign out failed.");
     }
   }
 
-  const authSlot =
-    !authLoading && !user ? (
-      <form className="authForm" onSubmit={signInOrUp}>
-        <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" type="email" autoComplete="email" />
-        <input
-          className="input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="password"
-          type="password"
-          autoComplete={authMode === "signup" ? "new-password" : "current-password"}
-        />
-        <button className="btn primary" type="submit">
-          {authMode === "signup" ? "Sign up" : "Sign in"}
-        </button>
-        <button className="btn ghost" type="button" onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}>
-          {authMode === "signup" ? "Have an account?" : "New here?"}
-        </button>
-      </form>
-    ) : null;
+  const authSlot = !user ? (
+    <form className="authForm" onSubmit={signInOrUp}>
+      <input
+        className="input"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="email"
+        type="email"
+        autoComplete="email"
+      />
+      <input
+        className="input"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="password"
+        type="password"
+        autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+      />
+      <button className="btn primary" type="submit">
+        {authMode === "signup" ? "Sign up" : "Sign in"}
+      </button>
+      <button
+        className="btn ghost"
+        type="button"
+        onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}
+      >
+        {authMode === "signup" ? "Have an account?" : "New here?"}
+      </button>
+    </form>
+  ) : null;
 
   return (
     <BrowserRouter>
@@ -182,7 +190,9 @@ export default function App() {
         </Routes>
 
         <footer className="footer">
-          <div className="muted">Commissioner-only actions are protected by Supabase RLS.</div>
+          <div className="muted">
+            Commissioner is: <strong>grantsanders05@gmail.com</strong>. (This is enforced by RLS in Supabase and by this UI.)
+          </div>
         </footer>
       </div>
     </BrowserRouter>
