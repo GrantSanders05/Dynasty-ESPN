@@ -1,18 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
- * Home page (FIXED): makes commissioner uploads (headlines + articles) never silent.
- * - Shows success/error banners
- * - Displays the exact Supabase error if RLS blocks inserts
- *
- * Expects tables:
- *  - headlines(id, text, link, priority, created_at)
- *  - articles(id, title, body, week, author, is_published, is_featured, created_at)
- *
- * NOTE: Run fix_articles_headlines_rls.sql if you get RLS errors.
+ * Home page (Headlines polished)
+ * Changes:
+ * - Removes the literal word "Priority" from the UI
+ * - Headlines render as a clean ESPN-style ticker list (not "cards")
+ * - Still supports commissioner posting + deleting
  */
 
-export default function Home({ supabase, isCommish, teams }) {
+export default function Home({ supabase, isCommish }) {
   const [loading, setLoading] = useState(true);
 
   const [headlines, setHeadlines] = useState([]);
@@ -33,8 +29,6 @@ export default function Home({ supabase, isCommish, teams }) {
   const [aAuthor, setAAuthor] = useState("");
   const [aBody, setABody] = useState("");
   const [savingArticle, setSavingArticle] = useState(false);
-
-  const weekLabel = useMemo(() => (aWeek ? `Week ${aWeek}` : "Week"), [aWeek]);
 
   function flashNotice(msg) {
     setNotice(msg);
@@ -61,10 +55,7 @@ export default function Home({ supabase, isCommish, teams }) {
     if (h.error) flashError(`Headlines: ${h.error.message}`);
     setHeadlines(h.data || []);
 
-    const a = await supabase
-      .from("articles")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const a = await supabase.from("articles").select("*").order("created_at", { ascending: false });
 
     if (a.error) flashError(`Articles: ${a.error.message}`);
     setArticles(a.data || []);
@@ -97,7 +88,6 @@ export default function Home({ supabase, isCommish, teams }) {
       await loadAll();
     } catch (e) {
       flashError(e?.message || "Failed to post headline.");
-      console.error("headline insert:", e);
     } finally {
       setSavingHeadline(false);
     }
@@ -142,7 +132,6 @@ export default function Home({ supabase, isCommish, teams }) {
       await loadAll();
     } catch (e) {
       flashError(e?.message || "Failed to post article.");
-      console.error("article insert:", e);
     } finally {
       setSavingArticle(false);
     }
@@ -198,7 +187,7 @@ export default function Home({ supabase, isCommish, teams }) {
         </div>
       )}
 
-      {/* Headlines */}
+      {/* Headlines (ticker-style) */}
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="cardHeader">
           <h2>Headlines</h2>
@@ -209,12 +198,19 @@ export default function Home({ supabase, isCommish, teams }) {
           <div className="grid2" style={{ marginBottom: 12 }}>
             <div>
               <label className="label">Headline</label>
-              <input className="input" value={hlText} onChange={(e) => setHlText(e.target.value)} placeholder="Big Week 5 matchup..." />
-              <label className="label" style={{ marginTop: 10 }}>Link (optional)</label>
+              <input
+                className="input"
+                value={hlText}
+                onChange={(e) => setHlText(e.target.value)}
+                placeholder="Big Week 5 matchup..."
+              />
+              <label className="label" style={{ marginTop: 10 }}>
+                Link (optional)
+              </label>
               <input className="input" value={hlLink} onChange={(e) => setHlLink(e.target.value)} placeholder="https://..." />
             </div>
             <div>
-              <label className="label">Priority (1 = top)</label>
+              <label className="label">Order (1 = top)</label>
               <input className="input" type="number" value={hlPriority} onChange={(e) => setHlPriority(e.target.value)} />
               <div style={{ marginTop: 10 }}>
                 <button className="btn primary" type="button" disabled={savingHeadline} onClick={addHeadline}>
@@ -222,7 +218,7 @@ export default function Home({ supabase, isCommish, teams }) {
                 </button>
               </div>
               <div className="muted" style={{ marginTop: 10 }}>
-                If this fails with RLS, run <strong>fix_articles_headlines_rls.sql</strong>.
+                Tip: lower numbers appear first.
               </div>
             </div>
           </div>
@@ -233,23 +229,53 @@ export default function Home({ supabase, isCommish, teams }) {
         ) : headlines.length === 0 ? (
           <div className="muted">No headlines yet.</div>
         ) : (
-          <div className="list">
+          <div
+            className="headlineTicker"
+            style={{
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              marginTop: 8,
+            }}
+          >
             {headlines.map((h) => (
-              <div className="listItem" key={h.id}>
-                <div className="listMain">
-                  <div className="listTitle">
+              <div
+                key={h.id}
+                className="headlineRow"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 6px",
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                {/* small green bullet for SportsCenter vibe */}
+                <span
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: "var(--accent)",
+                    display: "inline-block",
+                    flex: "0 0 auto",
+                  }}
+                />
+                <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                  <div className="headlineText" style={{ fontWeight: 700, lineHeight: 1.2 }}>
                     {h.link ? (
-                      <a href={h.link} target="_blank" rel="noreferrer">{h.text}</a>
+                      <a href={h.link} target="_blank" rel="noreferrer">
+                        {h.text}
+                      </a>
                     ) : (
                       h.text
                     )}
                   </div>
-                  <div className="muted">Priority: {h.priority ?? 1}</div>
                 </div>
+
                 {isCommish ? (
-                  <div className="listActions">
-                    <button className="btn danger" type="button" onClick={() => deleteHeadline(h.id)}>Delete</button>
-                  </div>
+                  <button className="btn danger" type="button" onClick={() => deleteHeadline(h.id)}>
+                    Delete
+                  </button>
                 ) : null}
               </div>
             ))}
@@ -272,7 +298,7 @@ export default function Home({ supabase, isCommish, teams }) {
 
               <div className="grid2" style={{ marginTop: 10 }}>
                 <div>
-                  <label className="label">{weekLabel} (optional)</label>
+                  <label className="label">Week (optional)</label>
                   <input className="input" type="number" value={aWeek} onChange={(e) => setAWeek(e.target.value)} placeholder="5" />
                 </div>
                 <div>
@@ -284,14 +310,17 @@ export default function Home({ supabase, isCommish, teams }) {
 
             <div>
               <label className="label">Body (paste your article)</label>
-              <textarea className="input" style={{ minHeight: 140 }} value={aBody} onChange={(e) => setABody(e.target.value)} placeholder="Paste article text here..." />
+              <textarea
+                className="input"
+                style={{ minHeight: 140 }}
+                value={aBody}
+                onChange={(e) => setABody(e.target.value)}
+                placeholder="Paste article text here..."
+              />
               <div style={{ marginTop: 10 }}>
                 <button className="btn primary" type="button" disabled={savingArticle} onClick={addArticle}>
                   {savingArticle ? "Posting..." : "Post Article"}
                 </button>
-              </div>
-              <div className="muted" style={{ marginTop: 10 }}>
-                If this fails with RLS, run <strong>fix_articles_headlines_rls.sql</strong>.
               </div>
             </div>
           </div>
@@ -319,11 +348,15 @@ export default function Home({ supabase, isCommish, teams }) {
 
                 {isCommish ? (
                   <div className="listActions">
-                    <button className="btn" type="button" onClick={() => toggleFeatured(a.id, a.is_featured)}>Feature</button>
+                    <button className="btn" type="button" onClick={() => toggleFeatured(a.id, a.is_featured)}>
+                      Feature
+                    </button>
                     <button className="btn" type="button" onClick={() => togglePublished(a.id, a.is_published)}>
                       {a.is_published ? "Unpublish" : "Publish"}
                     </button>
-                    <button className="btn danger" type="button" onClick={() => deleteArticle(a.id)}>Delete</button>
+                    <button className="btn danger" type="button" onClick={() => deleteArticle(a.id)}>
+                      Delete
+                    </button>
                   </div>
                 ) : null}
               </div>
