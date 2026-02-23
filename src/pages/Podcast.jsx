@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Podcast page (FIXED uploader)
- * - Commissioner-only upload UI (based on isCommish passed from App.jsx)
- * - Uploads audio file to Supabase Storage bucket: "podcasts"
- * - Writes a row to public.podcast_episodes
- * - Shows errors/success visibly so "nothing happens" can't be silent anymore
+ * Podcast page (FIXED v2)
+ * Your DB has a NOT NULL column named "file_path".
+ * This uploader now writes BOTH:
+ *   - file_path (required by your table)
+ *   - storage_path (kept for clarity / future use)
  */
 
 function prettySize(bytes) {
@@ -49,23 +49,19 @@ export default function Podcast({ supabase, isCommish }) {
     setError(msg);
     setNotice("");
     window.clearTimeout(flashError._t);
-    flashError._t = window.setTimeout(() => setError(""), 8000);
+    flashError._t = window.setTimeout(() => setError(""), 9000);
   }
 
   async function loadSettingsAndEpisodes() {
     setLoading(true);
 
-    // Podcast title (optional table)
+    // Podcast title (optional)
     try {
       const s = await supabase.from("site_settings").select("*").eq("key", "podcast_title").maybeSingle();
       if (!s.error && s.data?.value) setPodcastTitle(s.data.value);
     } catch {}
 
-    // Episodes
-    const res = await supabase
-      .from("podcast_episodes")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const res = await supabase.from("podcast_episodes").select("*").order("created_at", { ascending: false });
 
     if (res.error) {
       flashError(res.error.message);
@@ -85,10 +81,9 @@ export default function Podcast({ supabase, isCommish }) {
   async function savePodcastTitle() {
     if (!isCommish) return flashError("Commissioner only.");
     try {
-      const { error } = await supabase.from("site_settings").upsert(
-        { key: "podcast_title", value: podcastTitle },
-        { onConflict: "key" }
-      );
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: "podcast_title", value: podcastTitle }, { onConflict: "key" });
       if (error) throw error;
       flashNotice("Podcast title saved.");
     } catch (e) {
@@ -106,11 +101,11 @@ export default function Podcast({ supabase, isCommish }) {
     setNotice("");
 
     try {
-      // 1) Verify session (gives a clearer error if auth is broken)
+      // Ensure session exists (better error if auth breaks)
       const { data: sess } = await supabase.auth.getSession();
       if (!sess?.session) throw new Error("Not signed in.");
 
-      // 2) Upload to storage
+      // Upload to Storage
       const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
       const safeTitle = episodeTitle
         .trim()
@@ -123,23 +118,19 @@ export default function Podcast({ supabase, isCommish }) {
         upsert: false,
         contentType: file.type || undefined,
       });
+      if (up.error) throw new Error(`Storage upload failed: ${up.error.message}`);
 
-      if (up.error) {
-        // This is where RLS/policies usually show up
-        throw new Error(`Storage upload failed: ${up.error.message}`);
-      }
-
-      // 3) Get a public URL (bucket should be public OR have a read policy)
       const pub = supabase.storage.from("podcasts").getPublicUrl(path);
       const audioUrl = pub?.data?.publicUrl;
       if (!audioUrl) throw new Error("Could not get public URL for uploaded audio.");
 
-      // 4) Insert episode row
+      // IMPORTANT: your table requires file_path NOT NULL
       const ins = await supabase.from("podcast_episodes").insert({
         title: episodeTitle.trim(),
         description: episodeDesc.trim() || null,
         audio_url: audioUrl,
-        storage_path: path,
+        file_path: path,      // REQUIRED by your schema
+        storage_path: path,   // kept for compatibility
       });
 
       if (ins.error) throw new Error(`Database insert failed: ${ins.error.message}`);
@@ -158,18 +149,18 @@ export default function Podcast({ supabase, isCommish }) {
     }
   }
 
-  async function deleteEpisode(id, storage_path) {
+  async function deleteEpisode(id, pathMaybe) {
     if (!isCommish) return flashError("Commissioner only.");
     if (!confirm("Delete this episode?")) return;
 
     try {
-      // Delete DB row first (or vice versa — either is fine)
       const del = await supabase.from("podcast_episodes").delete().eq("id", id);
       if (del.error) throw del.error;
 
-      // Try delete storage file (if policy allows)
-      if (storage_path) {
-        const st = await supabase.storage.from("podcasts").remove([storage_path]);
+      // Try delete storage file (policy must allow)
+      const p = pathMaybe;
+      if (p) {
+        const st = await supabase.storage.from("podcasts").remove([p]);
         if (st.error) console.warn("Storage delete warning:", st.error.message);
       }
 
@@ -220,22 +211,13 @@ export default function Podcast({ supabase, isCommish }) {
               <textarea className="input" style={{ minHeight: 90 }} value={episodeDesc} onChange={(e) => setEpisodeDesc(e.target.value)} placeholder="What we covered..." />
 
               <label className="label" style={{ marginTop: 10 }}>Audio file</label>
-              <input
-                className="input"
-                type="file"
-                accept="audio/*"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
+              <input className="input" type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               {fileInfo ? <div className="muted" style={{ marginTop: 6 }}>{fileInfo}</div> : null}
 
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button className="btn primary" type="button" disabled={uploading} onClick={uploadEpisode}>
                   {uploading ? "Uploading..." : "Upload Episode"}
                 </button>
-              </div>
-
-              <div className="muted" style={{ marginTop: 10 }}>
-                If upload fails, the error message will appear above. Most common cause is a missing Storage policy.
               </div>
             </div>
           </div>
@@ -258,27 +240,30 @@ export default function Podcast({ supabase, isCommish }) {
           <div className="muted">No episodes yet.</div>
         ) : (
           <div className="list">
-            {episodes.map((ep) => (
-              <div className="listItem" key={ep.id}>
-                <div className="listMain">
-                  <div className="listTitle">{ep.title}</div>
-                  {ep.description ? <div className="muted">{ep.description}</div> : null}
-                  {ep.audio_url ? (
-                    <audio controls style={{ width: "100%", marginTop: 8 }} src={ep.audio_url} />
-                  ) : (
-                    <div className="muted" style={{ marginTop: 8 }}>No audio URL</div>
-                  )}
-                </div>
-
-                {isCommish ? (
-                  <div className="listActions">
-                    <button className="btn danger" type="button" onClick={() => deleteEpisode(ep.id, ep.storage_path)}>
-                      Delete
-                    </button>
+            {episodes.map((ep) => {
+              const storagePath = ep.storage_path || ep.file_path || null;
+              return (
+                <div className="listItem" key={ep.id}>
+                  <div className="listMain">
+                    <div className="listTitle">{ep.title}</div>
+                    {ep.description ? <div className="muted">{ep.description}</div> : null}
+                    {ep.audio_url ? (
+                      <audio controls style={{ width: "100%", marginTop: 8 }} src={ep.audio_url} />
+                    ) : (
+                      <div className="muted" style={{ marginTop: 8 }}>No audio URL</div>
+                    )}
                   </div>
-                ) : null}
-              </div>
-            ))}
+
+                  {isCommish ? (
+                    <div className="listActions">
+                      <button className="btn danger" type="button" onClick={() => deleteEpisode(ep.id, storagePath)}>
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
