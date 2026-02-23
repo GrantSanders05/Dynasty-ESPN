@@ -48,11 +48,17 @@ export default function App() {
     if (!res.error) setTeams(res.data || []);
   }
 
+  // IMPORTANT: getSession() reads local storage FIRST, so refresh won't "lose" the user
+  // even if getUser() network call hasn't completed yet.
   async function refreshUserAndRole() {
     setAuthLoading(true);
     try {
-      const { data } = await supabase.auth.getUser();
-      const u = data?.user ?? null;
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) console.warn("getSession error:", sessionErr);
+
+      const session = sessionData?.session ?? null;
+      const u = session?.user ?? null;
+
       setUser(u);
 
       if (!u?.email) {
@@ -60,11 +66,17 @@ export default function App() {
         return;
       }
 
-      const { data: cRow } = await supabase
+      // Can we see a commissioner row for this email?
+      const { data: cRow, error: cErr } = await supabase
         .from("commissioners")
         .select("email")
         .eq("email", u.email)
         .maybeSingle();
+
+      if (cErr) {
+        // If you see this error, it's usually an RLS/policy issue on commissioners table
+        console.warn("commissioners select error:", cErr);
+      }
 
       setIsCommish(!!cRow);
     } finally {
@@ -97,6 +109,8 @@ export default function App() {
         if (error) throw error;
         flashNotice("Signed in.");
       }
+
+      // Important: refresh state after auth
       setEmail("");
       setPassword("");
       await refreshUserAndRole();
@@ -120,11 +134,26 @@ export default function App() {
   const authSlot =
     !authLoading && !user ? (
       <form className="authForm" onSubmit={signInOrUp}>
-        <input className="input" value={email} onChange={e => setEmail(e.target.value)} placeholder="email" type="email" autoComplete="email" />
-        <input className="input" value={password} onChange={e => setPassword(e.target.value)} placeholder="password" type="password"
-          autoComplete={authMode === "signup" ? "new-password" : "current-password"} />
-        <button className="btn primary" type="submit">{authMode === "signup" ? "Sign up" : "Sign in"}</button>
-        <button className="btn ghost" type="button" onClick={() => setAuthMode(m => (m === "signup" ? "signin" : "signup"))}>
+        <input
+          className="input"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="email"
+          type="email"
+          autoComplete="email"
+        />
+        <input
+          className="input"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
+          type="password"
+          autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+        />
+        <button className="btn primary" type="submit">
+          {authMode === "signup" ? "Sign up" : "Sign in"}
+        </button>
+        <button className="btn ghost" type="button" onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}>
           {authMode === "signup" ? "Have an account?" : "New here?"}
         </button>
       </form>
@@ -163,9 +192,7 @@ export default function App() {
         </Routes>
 
         <footer className="footer">
-          <div className="muted">
-            Commissioner-only actions are protected by Supabase RLS. Public voting/replies are intentionally lightweight for your league.
-          </div>
+          <div className="muted">Commissioner-only actions are protected by Supabase RLS.</div>
         </footer>
       </div>
     </BrowserRouter>
