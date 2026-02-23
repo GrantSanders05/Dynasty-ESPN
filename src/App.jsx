@@ -73,8 +73,6 @@ export default function App() {
       setUser(data?.session?.user ?? null);
     } catch (e) {
       console.warn("refreshSession:", e?.message || e);
-      // If this happens, the page should still be usable (login form still visible).
-      // Common causes: Supabase URL config / env var mismatch, or blocked storage.
       setUser(null);
       flashError(
         "Auth check timed out. If this keeps happening: " +
@@ -192,11 +190,7 @@ export default function App() {
           <Route path="/teams/:slug" element={<Team supabase={supabase} isCommish={isCommish} />} />
         </Routes>
 
-        <footer className="footer">
-          <div className="muted">
-            Commissioner email: <strong>grantssanders05@gmail.com</strong>
-          </div>
-        </footer>
+        {/* Footer removed per request */}
       </div>
     </BrowserRouter>
   );
