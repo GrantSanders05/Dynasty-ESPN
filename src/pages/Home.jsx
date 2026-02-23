@@ -12,7 +12,9 @@ export default function Home({ supabase, isCommish }) {
   const [loading, setLoading] = useState(true);
 
   const [headlines, setHeadlines] = useState([]);
-  const [articles, setArticles] = useState([]);
+  const \[articles, setArticles\] = useState\(\[\]\);
+
+  const [teams, setTeams] = useState([]);
 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -61,6 +63,15 @@ export default function Home({ supabase, isCommish }) {
     if (a.error) flashError(`Articles: ${a.error.message}`);
     setArticles(a.data || []);
 
+
+    const t = await supabase
+      .from("teams")
+      .select("id,name,slug")
+      .order("name", { ascending: true });
+
+    if (t.error) flashError(`Teams: ${t.error.message}`);
+    setTeams(t.data || []);
+
     setLoading(false);
   }
 
@@ -81,6 +92,14 @@ export default function Home({ supabase, isCommish }) {
         priority: Number(hlPriority) || 1,
       });
       if (error) throw error;
+
+
+      // Link article to selected teams (many-to-many)
+      if (selectedTeamIds.length > 0) {
+        const rows = selectedTeamIds.map((team_id) => ({ article_id: inserted.id, team_id }));
+        const { error: tagErr } = await supabase.from("article_teams").insert(rows);
+        if (tagErr) throw tagErr;
+      }
 
       flashNotice("Headline posted.");
       setHlText("");
@@ -422,7 +441,34 @@ export default function Home({ supabase, isCommish }) {
                 <div>
                   <label className="label">Author (optional)</label>
                   <input className="input" value={aAuthor} onChange={(e) => setAAuthor(e.target.value)} placeholder="Commissioner" />
+                
+
+              <div style={{ marginTop: 10 }}>
+                <label className="label">Tag Teams (optional)</label>
+                <div className="grid2" style={{ marginTop: 6 }}>
+                  {teams.length === 0 ? (
+                    <div className="muted">No teams loaded.</div>
+                  ) : (
+                    teams.map((t) => (
+                      <label key={t.id} className="check" style={{ justifyContent: "flex-start" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamIds.includes(t.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTeamIds((prev) => Array.from(new Set([...prev, t.id])));
+                            } else {
+                              setSelectedTeamIds((prev) => prev.filter((x) => x !== t.id));
+                            }
+                          }}
+                        />
+                        {t.name}
+                      </label>
+                    ))
+                  )}
                 </div>
+              </div>
+</div>
               </div>
             </div>
 
