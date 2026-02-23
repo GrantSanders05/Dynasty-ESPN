@@ -31,7 +31,12 @@ export default function Navbar({ appTitle, teams = [], userEmail, isCommish, onS
             <div className="menu" role="menu">
               {teamLinks.length ? (
                 teamLinks.map(t => (
-                  <Link key={t.slug} to={`/teams/${t.slug}`} className="menuItem" onClick={() => setOpen(false)}>
+                  <Link
+                    key={t.slug}
+                    to={`/teams/${t.slug}`}
+                    className="menuItem"
+                    onClick={() => setOpen(false)}
+                  >
                     {t.name}
                   </Link>
                 ))
