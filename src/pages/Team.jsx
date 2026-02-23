@@ -168,48 +168,41 @@ export default function Team({ supabase, isCommish }) {
   return (
     <div className="page">
       {msg?.type === "ok" && <div className="banner notice">{msg.text}</div>}
-      {msg?.type === "err" && <div className="banner error">{msg.text}</div>}
-
-      <div className="teamHero">
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <div
-            style={{
-              width: 74,
-              height: 74,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(0,0,0,.18)",
-              overflow: "hidden",
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
+      {msg?.type === "err" && <div className="banner error">{msg.text}</div>}      <div className="teamHero">
+        <div className="teamHeroHeader">
+          <div className="teamLogoHero" aria-label="Team logo">
             {logoUrl ? (
-              <img src={logoUrl} alt={`${team.name} logo`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img className="teamLogoImg" src={logoUrl} alt={`${team.name} logo`} />
             ) : (
               <div className="muted" style={{ fontWeight: 900 }}>LOGO</div>
             )}
           </div>
 
-          <div style={{ flex: 1 }}>
-            <div className="teamName">{team.name}</div>
-            <div className="muted" style={{ marginTop: 4 }}>/teams/{team.slug}</div>
+          <div className="teamHeroText">
+            <div className="teamName teamNameBig">{team.name}</div>
+            <div className="muted" style={{ marginTop: 6 }}>/teams/{team.slug}</div>
           </div>
 
-          {isCommish && (
-            <button className="btn primary" onClick={saveAll} disabled={saving}>
-              {saving ? "Saving…" : "Save Changes"}
-            </button>
-          )}
+          {isCommish ? (
+            <div className="teamHeroActions">
+              <button className="btn primary" onClick={saveAll} disabled={saving}>
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        {isCommish && (
-          <div style={{ marginTop: 12 }}>
+        {isCommish ? (
+          <div className="teamHeroEdit">
             <div className="kvKey">Logo URL</div>
-            <input className="input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" />
+            <input className="input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…(direct image URL)" />
+            <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+              Tip: use a direct image link ending in .png/.jpg/.svg (Wikipedia: click the logo → “Original file”).
+            </div>
           </div>
-        )}
+        ) : null}
       </div>
+
 
       <div className="grid2">
         <div className="card">
