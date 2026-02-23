@@ -224,7 +224,7 @@ export default function Podcast({ supabase, isCommish }) {
         </section>
       ) : (
         <div className="banner">
-          <strong>Note:</strong> Sign in as commissioner to upload episodes.
+          <strong>Note:</strong> 
         </div>
       )}
 
