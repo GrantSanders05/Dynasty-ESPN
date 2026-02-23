@@ -58,7 +58,6 @@ export default function App() {
     const res = await supabase
       .from("teams")
       .select("*")
-      .order("rank", { ascending: true })
       .order("name", { ascending: true });
 
     if (!res.error) setTeams(res.data || []);
