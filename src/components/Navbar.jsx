@@ -59,11 +59,10 @@ export default function Navbar({
       </nav>
 
       <div className="authBox">
-        {authLoading ? (
-          <div className="pill">Loading…</div>
-        ) : authSlot ? (
-          authSlot
-        ) : userEmail ? (
+        {/* Show a small loading pill but NEVER hide the auth form */}
+        {authLoading ? <div className="pill">Loading…</div> : null}
+
+        {userEmail ? (
           <div className="authSignedIn">
             <div className="pill">
               {userEmail} {isCommish ? <strong>• Commissioner</strong> : null}
@@ -73,7 +72,7 @@ export default function Navbar({
             </button>
           </div>
         ) : (
-          <div className="pill">Not signed in</div>
+          authSlot
         )}
       </div>
     </header>
