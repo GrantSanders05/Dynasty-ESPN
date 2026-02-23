@@ -2,159 +2,335 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import ArticleCard from "../components/ArticleCard.jsx";
 
-const POSITIONS = ["QB","RB","WR","TE","OL","DL","LB","CB","S","K","X-FACTOR"];
+const KEY_POSITIONS = ["QB", "RB", "WR", "CB", "DL"];
+
+function emptyPlayers() {
+  return KEY_POSITIONS.reduce((acc, pos) => {
+    acc[pos] = { position: pos, player_name: "", overall: "" };
+    return acc;
+  }, {});
+}
 
 export default function Team({ supabase, isCommish }) {
   const { slug } = useParams();
+
   const [team, setTeam] = useState(null);
-  const [players, setPlayers] = useState([]);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [schedule, setSchedule] = useState([]); // 15 rows
+  const [playersByPos, setPlayersByPos] = useState(emptyPlayers());
   const [articles, setArticles] = useState([]);
 
-  const [edit, setEdit] = useState({ name: "", record: "", rank: "", coach: "" });
-  const [playerEdits, setPlayerEdits] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const weeks = useMemo(() => {
+    const map = new Map((schedule || []).map((r) => [r.week, r]));
+    return Array.from({ length: 15 }, (_, i) => {
+      const w = i + 1;
+      return (
+        map.get(w) || {
+          week: w,
+          opponent: "",
+          opponent_rank: "",
+          location: "",
+          notes: "",
+        }
+      );
+    });
+  }, [schedule]);
 
   async function load() {
-    const tRes = await supabase.from("teams").select("*").eq("slug", slug).maybeSingle();
+    setLoading(true);
+    setMsg(null);
+
+    const tRes = await supabase
+      .from("teams")
+      .select("id,name,slug,logo_url")
+      .eq("slug", slug)
+      .maybeSingle();
+
     if (tRes.error || !tRes.data) {
-      setTeam(null); setPlayers([]); setArticles([]); return;
+      setTeam(null);
+      setLoading(false);
+      return;
     }
-    setTeam(tRes.data);
-    setEdit({ name: tRes.data.name || "", record: tRes.data.record || "", rank: tRes.data.rank ?? "", coach: tRes.data.coach || "" });
 
-    const pRes = await supabase.from("team_key_players").select("*").eq("team_id", tRes.data.id);
+    const t = tRes.data;
+    setTeam(t);
+    setLogoUrl(t.logo_url || "");
+
+    const [sRes, pRes, aRes] = await Promise.all([
+      supabase
+        .from("team_schedule")
+        .select("id,team_id,week,opponent,opponent_rank,location,notes")
+        .eq("team_id", t.id)
+        .order("week", { ascending: true }),
+      supabase
+        .from("team_key_players")
+        .select("id,team_id,position,player_name,overall")
+        .eq("team_id", t.id),
+      supabase
+        .from("article_teams")
+        .select("created_at, articles(*)")
+        .eq("team_id", t.id)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (!sRes.error) setSchedule(sRes.data || []);
     if (!pRes.error) {
-      setPlayers(pRes.data || []);
-      const map = {};
-      for (const p of (pRes.data || [])) map[p.position] = p.player_name;
-      setPlayerEdits(map);
+      const next = emptyPlayers();
+      (pRes.data || []).forEach((r) => {
+        if (next[r.position]) next[r.position] = r;
+      });
+      setPlayersByPos(next);
     }
-
-    const mapRes = await supabase.from("article_team_map").select("article_id, articles(*)").eq("team_id", tRes.data.id);
-    if (!mapRes.error) {
-      const rows = mapRes.data || [];
-      const arts = rows
-        .map(r => r.articles)
+    if (!aRes.error) {
+      const list = (aRes.data || [])
+        .map((r) => r.articles)
         .filter(Boolean)
-        .filter(a => a.published !== false)
-        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-      setArticles(arts);
+        .filter((a, idx, arr) => arr.findIndex((x) => x.id === a.id) === idx);
+      setArticles(list);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  function updateWeek(week, patch) {
+    setSchedule((prev) => {
+      const existing = (prev || []).find((r) => r.week === week);
+      const updated = { ...(existing || { week }), ...patch };
+      const others = (prev || []).filter((r) => r.week !== week);
+      return [...others, updated].sort((a, b) => a.week - b.week);
+    });
+  }
+
+  function updatePlayer(pos, patch) {
+    setPlayersByPos((prev) => ({ ...prev, [pos]: { ...(prev[pos] || { position: pos }), ...patch } }));
+  }
+
+  async function saveAll() {
+    if (!team) return;
+    setSaving(true);
+    setMsg(null);
+
+    try {
+      // 1) Save logo
+      const uTeam = await supabase.from("teams").update({ logo_url: logoUrl || null }).eq("id", team.id);
+      if (uTeam.error) throw uTeam.error;
+
+      // 2) Save schedule (upsert by team_id + week)
+      const schedRows = weeks.map((w) => ({
+        team_id: team.id,
+        week: w.week,
+        opponent: (w.opponent || "").trim() || null,
+        opponent_rank: w.opponent_rank === "" || w.opponent_rank == null ? null : Number(w.opponent_rank),
+        location: (w.location || "").trim() || null,
+        notes: (w.notes || "").trim() || null,
+      }));
+      const uSched = await supabase
+        .from("team_schedule")
+        .upsert(schedRows, { onConflict: "team_id,week" });
+      if (uSched.error) throw uSched.error;
+
+      // 3) Save key players (upsert by team_id + position)
+      const playerRows = KEY_POSITIONS.map((pos) => {
+        const r = playersByPos[pos] || { position: pos };
+        return {
+          team_id: team.id,
+          position: pos,
+          player_name: (r.player_name || "").trim() || null,
+          overall: r.overall === "" || r.overall == null ? null : Number(r.overall),
+        };
+      });
+      const uPlayers = await supabase
+        .from("team_key_players")
+        .upsert(playerRows, { onConflict: "team_id,position" });
+      if (uPlayers.error) throw uPlayers.error;
+
+      setMsg({ type: "ok", text: "Saved team page updates." });
+      await load();
+    } catch (e) {
+      setMsg({ type: "err", text: e?.message || "Save failed." });
+    } finally {
+      setSaving(false);
     }
   }
 
-  useEffect(() => { load(); }, [slug]);
-
-  const playersByPos = useMemo(() => {
-    const m = new Map();
-    for (const p of players) m.set(p.position, p.player_name);
-    return m;
-  }, [players]);
-
-  async function saveTeam(e) {
-    e.preventDefault();
-    if (!isCommish || !team) return;
-
-    await supabase.from("teams").update({
-      name: edit.name.trim() || team.name,
-      record: edit.record.trim() || null,
-      rank: edit.rank === "" ? null : Number(edit.rank),
-      coach: edit.coach.trim() || null,
-    }).eq("id", team.id);
-
-    await load();
-  }
-
-  async function savePlayers(e) {
-    e.preventDefault();
-    if (!isCommish || !team) return;
-
-    const rows = POSITIONS
-      .map(pos => ({
-        team_id: team.id,
-        position: pos,
-        player_name: (playerEdits[pos] || "").trim() || null,
-      }))
-      .filter(r => r.player_name);
-
-    await supabase.from("team_key_players").delete().eq("team_id", team.id);
-    if (rows.length) await supabase.from("team_key_players").insert(rows);
-
-    await load();
-  }
-
-  if (!team) {
-    return (
-      <main className="page">
-        <div className="pageHeader">
-          <h1>Team Not Found</h1>
-          <div className="muted">This team slug doesn't exist.</div>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <div className="page"><div className="card">Loading team…</div></div>;
+  if (!team) return <div className="page"><div className="card">Team not found.</div></div>;
 
   return (
-    <main className="page">
+    <div className="page">
+      {msg?.type === "ok" && <div className="banner notice">{msg.text}</div>}
+      {msg?.type === "err" && <div className="banner error">{msg.text}</div>}
+
       <div className="teamHero">
-        <div className="teamName">{team.name}</div>
-        <div className="teamMeta">
-          {team.rank != null ? <span className="pill">Rank #{team.rank}</span> : null}
-          {team.record ? <span className="pill">{team.record}</span> : null}
-          {team.coach ? <span className="pill">Coach: {team.coach}</span> : null}
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <div
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(0,0,0,.18)",
+              overflow: "hidden",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={`${team.name} logo`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div className="muted" style={{ fontWeight: 900 }}>LOGO</div>
+            )}
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div className="teamName">{team.name}</div>
+            <div className="muted" style={{ marginTop: 4 }}>/teams/{team.slug}</div>
+          </div>
+
+          {isCommish && (
+            <button className="btn primary" onClick={saveAll} disabled={saving}>
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          )}
         </div>
-      </div>
 
-      {isCommish && (
-        <div className="card">
-          <div className="cardHeader"><h2>Commissioner: Edit Team</h2></div>
-          <form className="form" onSubmit={saveTeam}>
-            <div className="row">
-              <input className="input" placeholder="Team name" value={edit.name} onChange={(e) => setEdit(s => ({...s, name:e.target.value}))} />
-              <input className="input" placeholder="Record (ex: 6-1)" value={edit.record} onChange={(e) => setEdit(s => ({...s, record:e.target.value}))} />
-            </div>
-            <div className="row">
-              <input className="input" placeholder="Rank (number)" value={edit.rank} onChange={(e) => setEdit(s => ({...s, rank:e.target.value}))} />
-              <input className="input" placeholder="Coach (optional)" value={edit.coach} onChange={(e) => setEdit(s => ({...s, coach:e.target.value}))} />
-              <button className="btn primary" type="submit">Save</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="cardHeader"><h2>Key Players</h2></div>
-
-        {isCommish ? (
-          <form className="form" onSubmit={savePlayers}>
-            <div className="grid2">
-              {POSITIONS.map(pos => (
-                <div key={pos} className="kv">
-                  <div className="kvKey">{pos}</div>
-                  <input className="input" placeholder="Player name" value={playerEdits[pos] || ""}
-                    onChange={(e) => setPlayerEdits(s => ({ ...s, [pos]: e.target.value }))} />
-                </div>
-              ))}
-            </div>
-            <button className="btn primary" type="submit">Save Key Players</button>
-          </form>
-        ) : (
-          <div className="grid2">
-            {POSITIONS.map(pos => (
-              <div key={pos} className="kv">
-                <div className="kvKey">{pos}</div>
-                <div className="kvVal">{playersByPos.get(pos) || <span className="muted">—</span>}</div>
-              </div>
-            ))}
+        {isCommish && (
+          <div style={{ marginTop: 12 }}>
+            <div className="kvKey">Logo URL</div>
+            <input className="input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" />
           </div>
         )}
       </div>
 
-      <div className="card">
-        <div className="cardHeader"><h2>Team Articles</h2></div>
-        <div className="grid">
-          {articles.map(a => <ArticleCard key={a.id} a={a} isCommish={false} />)}
-          {!articles.length && <div className="muted">No articles tagged to this team yet.</div>}
+      <div className="grid2">
+        <div className="card">
+          <div className="cardHeader">
+            <h2>Key Players</h2>
+          </div>
+
+          <div className="stack">
+            {KEY_POSITIONS.map((pos) => {
+              const r = playersByPos[pos] || { position: pos };
+              return (
+                <div key={pos} className="kv">
+                  <div className="kvKey">{pos}</div>
+
+                  {isCommish ? (
+                    <div className="row">
+                      <input
+                        className="input"
+                        value={r.player_name || ""}
+                        onChange={(e) => updatePlayer(pos, { player_name: e.target.value })}
+                        placeholder="Player name"
+                      />
+                      <input
+                        className="input"
+                        value={r.overall ?? ""}
+                        onChange={(e) => updatePlayer(pos, { overall: e.target.value })}
+                        placeholder="OVR"
+                        inputMode="numeric"
+                      />
+                    </div>
+                  ) : (
+                    <div className="row">
+                      <div className="kvVal">{r.player_name || <span className="muted">—</span>}</div>
+                      <div className="kvVal">{r.overall ?? <span className="muted">—</span>}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="cardHeader">
+            <h2>Schedule</h2>
+            <span className="muted" style={{ fontSize: 12 }}>15 weeks</span>
+          </div>
+
+          <div className="stack">
+            {weeks.map((w) => (
+              <div key={w.week} className="episode">
+                <div className="episodeTitle">Week {w.week}</div>
+
+                {isCommish ? (
+                  <>
+                    <div className="row">
+                      <input
+                        className="input"
+                        value={w.opponent || ""}
+                        onChange={(e) => updateWeek(w.week, { opponent: e.target.value })}
+                        placeholder="Opponent"
+                      />
+                      <input
+                        className="input"
+                        value={w.opponent_rank ?? ""}
+                        onChange={(e) => updateWeek(w.week, { opponent_rank: e.target.value })}
+                        placeholder="Opp Rank (1–25)"
+                        inputMode="numeric"
+                      />
+                    </div>
+
+                    <div className="row">
+                      <input
+                        className="input"
+                        value={w.location || ""}
+                        onChange={(e) => updateWeek(w.week, { location: e.target.value })}
+                        placeholder="H / A (or custom)"
+                      />
+                      <input
+                        className="input"
+                        value={w.notes || ""}
+                        onChange={(e) => updateWeek(w.week, { notes: e.target.value })}
+                        placeholder="Notes"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="row">
+                    <div className="kvVal">
+                      {w.location ? `${w.location} ` : ""}
+                      {w.opponent || <span className="muted">TBD</span>}
+                      {w.opponent_rank ? <span className="badge" style={{ marginLeft: 8 }}>#{w.opponent_rank}</span> : null}
+                    </div>
+                    <div className="muted">{w.notes || ""}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </main>
+
+      <div style={{ height: 14 }} />
+
+      <div className="card">
+        <div className="cardHeader">
+          <h2>Team News</h2>
+        </div>
+
+        {articles?.length ? (
+          <ul className="list">
+            {articles.map((a) => (
+              <li key={a.id} className="listItem">
+                <ArticleCard article={a} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="muted">No team-tagged articles yet.</div>
+        )}
+      </div>
+    </div>
   );
 }
