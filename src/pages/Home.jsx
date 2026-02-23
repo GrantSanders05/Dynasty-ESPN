@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 
 /**
- * Home page (Headlines polished)
- * Changes:
- * - Removes the literal word "Priority" from the UI
- * - Headlines render as a clean ESPN-style ticker list (not "cards")
- * - Still supports commissioner posting + deleting
+ * Home page (Headlines as banner strip, NOT inside a card)
+ * - Headlines display as a top "SportsCenter" style banner/ticker section
+ * - Commissioner form is kept in a small card below (so we don't break anything)
+ * - Articles section unchanged
  */
 
 export default function Home({ supabase, isCommish }) {
@@ -94,7 +93,7 @@ export default function Home({ supabase, isCommish }) {
   }
 
   async function deleteHeadline(id) {
-    if (!isCommish) return flashError("Commissioner only.");
+    if (!isCommish) return;
     if (!confirm("Delete this headline?")) return;
 
     try {
@@ -138,7 +137,7 @@ export default function Home({ supabase, isCommish }) {
   }
 
   async function toggleFeatured(id, is_featured) {
-    if (!isCommish) return flashError("Commissioner only.");
+    if (!isCommish) return;
     try {
       const { error } = await supabase.from("articles").update({ is_featured: !is_featured }).eq("id", id);
       if (error) throw error;
@@ -149,7 +148,7 @@ export default function Home({ supabase, isCommish }) {
   }
 
   async function togglePublished(id, is_published) {
-    if (!isCommish) return flashError("Commissioner only.");
+    if (!isCommish) return;
     try {
       const { error } = await supabase.from("articles").update({ is_published: !is_published }).eq("id", id);
       if (error) throw error;
@@ -160,7 +159,7 @@ export default function Home({ supabase, isCommish }) {
   }
 
   async function deleteArticle(id) {
-    if (!isCommish) return flashError("Commissioner only.");
+    if (!isCommish) return;
     if (!confirm("Delete this article?")) return;
 
     try {
@@ -175,93 +174,92 @@ export default function Home({ supabase, isCommish }) {
 
   return (
     <main className="page">
-      <div className="pageHeader">
-        <h1>Home</h1>
-        <div className="muted">Headlines, stories, and weekly coverage.</div>
-      </div>
-
-      {(notice || error) && (
-        <div className="stack" style={{ marginBottom: 12 }}>
-          {notice ? <div className="banner ok">{notice}</div> : null}
-          {error ? <div className="banner err">{error}</div> : null}
-        </div>
-      )}
-
-      {/* Headlines (ticker-style) */}
-      <section className="card" style={{ marginBottom: 16 }}>
-        <div className="cardHeader">
-          <h2>Headlines</h2>
-          <div className="muted">{loading ? "Loading..." : `${headlines.length} total`}</div>
-        </div>
-
-        {isCommish ? (
-          <div className="grid2" style={{ marginBottom: 12 }}>
-            <div>
-              <label className="label">Headline</label>
-              <input
-                className="input"
-                value={hlText}
-                onChange={(e) => setHlText(e.target.value)}
-                placeholder="Big Week 5 matchup..."
-              />
-              <label className="label" style={{ marginTop: 10 }}>
-                Link (optional)
-              </label>
-              <input className="input" value={hlLink} onChange={(e) => setHlLink(e.target.value)} placeholder="https://..." />
-            </div>
-            <div>
-              <label className="label">Order (1 = top)</label>
-              <input className="input" type="number" value={hlPriority} onChange={(e) => setHlPriority(e.target.value)} />
-              <div style={{ marginTop: 10 }}>
-                <button className="btn primary" type="button" disabled={savingHeadline} onClick={addHeadline}>
-                  {savingHeadline ? "Posting..." : "Post Headline"}
-                </button>
-              </div>
-              <div className="muted" style={{ marginTop: 10 }}>
-                Tip: lower numbers appear first.
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {loading ? (
-          <div className="muted">Loading headlines…</div>
-        ) : headlines.length === 0 ? (
-          <div className="muted">No headlines yet.</div>
-        ) : (
+      {/* Headlines banner strip (outside card) */}
+      <section
+        style={{
+          marginBottom: 14,
+          borderRadius: 16,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "linear-gradient(90deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "10px 12px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            background: "linear-gradient(90deg, rgba(0,0,0,0.70), rgba(0,0,0,0.35))",
+          }}
+        >
           <div
-            className="headlineTicker"
             style={{
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              marginTop: 8,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              fontWeight: 900,
+              letterSpacing: 0.6,
+              textTransform: "uppercase",
             }}
           >
-            {headlines.map((h) => (
+            <span
+              aria-hidden
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: "var(--accent)",
+                display: "inline-block",
+              }}
+            />
+            Top Headlines
+          </div>
+          <div className="muted" style={{ marginLeft: "auto" }}>
+            {loading ? "Loading…" : `${headlines.length}`}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="muted" style={{ padding: 12 }}>
+            Loading headlines…
+          </div>
+        ) : headlines.length === 0 ? (
+          <div className="muted" style={{ padding: 12 }}>
+            No headlines yet.
+          </div>
+        ) : (
+          <div style={{ display: "grid" }}>
+            {headlines.map((h, idx) => (
               <div
                 key={h.id}
-                className="headlineRow"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  padding: "10px 6px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  padding: "12px 12px",
+                  borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.06)",
                 }}
               >
-                {/* small green bullet for SportsCenter vibe */}
                 <span
-                  aria-hidden
                   style={{
-                    width: 8,
-                    height: 8,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    padding: "4px 8px",
                     borderRadius: 999,
-                    background: "var(--accent)",
-                    display: "inline-block",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.10)",
                     flex: "0 0 auto",
                   }}
-                />
+                  title="Order"
+                >
+                  #{h.priority ?? (idx + 1)}
+                </span>
+
                 <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                  <div className="headlineText" style={{ fontWeight: 700, lineHeight: 1.2 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.25 }}>
                     {h.link ? (
                       <a href={h.link} target="_blank" rel="noreferrer">
                         {h.text}
@@ -282,6 +280,49 @@ export default function Home({ supabase, isCommish }) {
           </div>
         )}
       </section>
+
+      <div className="pageHeader">
+        <h1>Home</h1>
+        <div className="muted">Headlines, stories, and weekly coverage.</div>
+      </div>
+
+      {(notice || error) && (
+        <div className="stack" style={{ marginBottom: 12 }}>
+          {notice ? <div className="banner ok">{notice}</div> : null}
+          {error ? <div className="banner err">{error}</div> : null}
+        </div>
+      )}
+
+      {/* Commissioner headline posting (kept in a card so we don't break anything) */}
+      {isCommish ? (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <div className="cardHeader">
+            <h2>Post a Headline</h2>
+            <div className="muted">These appear in the top banner.</div>
+          </div>
+
+          <div className="grid2">
+            <div>
+              <label className="label">Headline</label>
+              <input className="input" value={hlText} onChange={(e) => setHlText(e.target.value)} placeholder="Big Week 5 matchup..." />
+              <label className="label" style={{ marginTop: 10 }}>Link (optional)</label>
+              <input className="input" value={hlLink} onChange={(e) => setHlLink(e.target.value)} placeholder="https://..." />
+            </div>
+            <div>
+              <label className="label">Order (1 = top)</label>
+              <input className="input" type="number" value={hlPriority} onChange={(e) => setHlPriority(e.target.value)} />
+              <div style={{ marginTop: 10 }}>
+                <button className="btn primary" type="button" disabled={savingHeadline} onClick={addHeadline}>
+                  {savingHeadline ? "Posting..." : "Post Headline"}
+                </button>
+              </div>
+              <div className="muted" style={{ marginTop: 10 }}>
+                Tip: lower numbers appear first.
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* Articles */}
       <section className="card">
@@ -310,13 +351,7 @@ export default function Home({ supabase, isCommish }) {
 
             <div>
               <label className="label">Body (paste your article)</label>
-              <textarea
-                className="input"
-                style={{ minHeight: 140 }}
-                value={aBody}
-                onChange={(e) => setABody(e.target.value)}
-                placeholder="Paste article text here..."
-              />
+              <textarea className="input" style={{ minHeight: 140 }} value={aBody} onChange={(e) => setABody(e.target.value)} placeholder="Paste article text here..." />
               <div style={{ marginTop: 10 }}>
                 <button className="btn primary" type="button" disabled={savingArticle} onClick={addArticle}>
                   {savingArticle ? "Posting..." : "Post Article"}
