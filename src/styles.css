@@ -23,7 +23,7 @@ body{
 }
 a{color:inherit}
 .muted{color:var(--muted)}
-.app{min-height:100vh;display:flex;flex-direction:column
+.app{min-height:100vh;display:flex;flex-direction:column;
   position:relative;
   z-index:1;}
 
@@ -118,7 +118,7 @@ a{color:inherit}
   .authBox{min-width:auto}
 }
 
-.page{padding:16px 18px 24px;max-width:1100px;width:100%;margin:0 auto
+.page{padding:16px 18px 24px;max-width:1100px;width:100%;margin:0 auto;
   position:relative;
   z-index:1;}
 .pageHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:10px 0 14px}
@@ -340,7 +340,7 @@ body::before{
       transparent 6px
     );
 
-  z-index:0;
+  z-index:-1;
 }
 body::after{
   content:"";
@@ -350,7 +350,7 @@ body::after{
   background:radial-gradient(60% 55% at 50% 25%, transparent 0 60%, rgba(0,0,0,.45) 100%);
   opacity:.55;
 
-  z-index:0;
+  z-index:-1;
 }
 
 /* Topbar: glass + broadcast divider */
