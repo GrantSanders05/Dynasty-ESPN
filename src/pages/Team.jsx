@@ -3,15 +3,16 @@ import { useParams, Link } from "react-router-dom";
 import { supabase as defaultSupabase } from "../supabaseClient";
 
 /**
- * Team Page
- * - Shows: hero, key players, schedule, team news (tagged articles)
- * - Restores: commissioner editing (name/logo + one "about" field if present)
+ * Team Page (ESPN-style)
+ * - Public: view team, key players, schedule, team news
+ * - Commissioner: edit team basics + CRUD for key players & schedule
  *
- * Notes:
- * - Editing is safe: we only update columns that actually exist on the team row.
- * - Commish detection:
- *    1) isCommish prop (preferred)
- *    2) user + commishEmail props (fallback)
+ * Tables used:
+ * - teams (expects: id, slug, name, logo_url, plus optional about/bio/description)
+ * - team_key_players (expects: id, team_id, position, name, overall)
+ * - team_schedule (expects: id, team_id, week, opponent, opponent_rank, home_away, note)
+ * - article_teams (expects: team_id, article_id)
+ * - articles (expects: id, title, body/content/excerpt, created_at, url)
  */
 export default function Team({
   supabase = defaultSupabase,
@@ -21,6 +22,7 @@ export default function Team({
 }) {
   const { slug } = useParams();
 
+  // Commissioner detection: either explicit prop OR email match fallback.
   const canEdit = useMemo(() => {
     if (isCommish) return true;
     const e = (user?.email || "").toLowerCase();
@@ -31,31 +33,52 @@ export default function Team({
   const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [articles, setArticles] = useState([]);
-  const [articlesLoading, setArticlesLoading] = useState(false);
-
   const [players, setPlayers] = useState([]);
   const [schedule, setSchedule] = useState([]);
 
-  // --- Editing ---
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [draft, setDraft] = useState({
-    name: "",
-    logo_url: "",
-    about: "",
+  const [articles, setArticles] = useState([]);
+  const [articlesLoading, setArticlesLoading] = useState(false);
+
+  // --- Team basics edit
+  const [editingTeam, setEditingTeam] = useState(false);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const [teamSaveError, setTeamSaveError] = useState("");
+  const [draftTeam, setDraftTeam] = useState({ name: "", logo_url: "", about: "" });
+
+  // --- Key players edit
+  const [editingPlayers, setEditingPlayers] = useState(false);
+  const [playerSaveError, setPlayerSaveError] = useState("");
+  const [playerBusyId, setPlayerBusyId] = useState(null);
+  const [newPlayer, setNewPlayer] = useState({ position: "", name: "", overall: "" });
+  const [editPlayerId, setEditPlayerId] = useState(null);
+  const [editPlayerDraft, setEditPlayerDraft] = useState({ position: "", name: "", overall: "" });
+
+  // --- Schedule edit
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [scheduleSaveError, setScheduleSaveError] = useState("");
+  const [scheduleBusyId, setScheduleBusyId] = useState(null);
+  const [newGame, setNewGame] = useState({
+    week: "",
+    opponent: "",
+    opponent_rank: "",
+    home_away: "",
+    note: "",
+  });
+  const [editGameId, setEditGameId] = useState(null);
+  const [editGameDraft, setEditGameDraft] = useState({
+    week: "",
+    opponent: "",
+    opponent_rank: "",
+    home_away: "",
+    note: "",
   });
 
-  // Prefer an "about" column if it exists (so we don't guess wrong column names)
+  // Prefer an about column if it exists (keeps us from guessing wrong)
   const aboutFieldName = useMemo(() => {
     if (!team) return "";
     const candidates = ["about", "bio", "description", "blurb", "summary"];
     return candidates.find((c) => Object.prototype.hasOwnProperty.call(team, c)) || "";
   }, [team]);
-
-  const teamName = team?.name || "Team";
-  const heroLogo = team?.logo_url || "";
 
   const excerpt = useMemo(() => {
     return (text, max = 160) => {
@@ -65,7 +88,7 @@ export default function Team({
     };
   }, []);
 
-  // Load team by slug
+  // ------------ LOADERS ------------
   useEffect(() => {
     let alive = true;
 
@@ -92,25 +115,11 @@ export default function Team({
     }
 
     loadTeam();
-
     return () => {
       alive = false;
     };
   }, [slug, supabase]);
 
-  // When team loads, seed editor draft (but don't overwrite while actively editing)
-  useEffect(() => {
-    if (!team) return;
-    if (editing) return;
-
-    setDraft({
-      name: team.name || "",
-      logo_url: team.logo_url || "",
-      about: aboutFieldName ? (team[aboutFieldName] || "") : "",
-    });
-  }, [team, aboutFieldName, editing]);
-
-  // Key players (optional table)
   useEffect(() => {
     if (!team?.id) return;
     let alive = true;
@@ -129,18 +138,15 @@ export default function Team({
         setPlayers([]);
         return;
       }
-
       setPlayers(data || []);
     }
 
     loadPlayers();
-
     return () => {
       alive = false;
     };
   }, [team?.id, supabase]);
 
-  // Schedule (optional table)
   useEffect(() => {
     if (!team?.id) return;
     let alive = true;
@@ -159,18 +165,15 @@ export default function Team({
         setSchedule([]);
         return;
       }
-
       setSchedule(data || []);
     }
 
     loadSchedule();
-
     return () => {
       alive = false;
     };
   }, [team?.id, supabase]);
 
-  // Tagged articles
   useEffect(() => {
     if (!team?.id) return;
 
@@ -221,61 +224,316 @@ export default function Team({
     }
 
     loadTeamArticles();
-
     return () => {
       alive = false;
     };
   }, [team?.id, supabase]);
 
+  // Seed team draft (when not actively editing)
+  useEffect(() => {
+    if (!team) return;
+    if (editingTeam) return;
+
+    setDraftTeam({
+      name: team.name || "",
+      logo_url: team.logo_url || "",
+      about: aboutFieldName ? (team[aboutFieldName] || "") : "",
+    });
+  }, [team, aboutFieldName, editingTeam]);
+
+  // ------------ TEAM SAVE ------------
   async function saveTeamEdits() {
     if (!canEdit || !team?.id) return;
-    if (saving) return;
+    if (savingTeam) return;
 
-    const name = (draft.name || "").trim();
-    const logo_url = (draft.logo_url || "").trim();
-    const about = (draft.about || "").trim();
+    const name = (draftTeam.name || "").trim();
+    const logo_url = (draftTeam.logo_url || "").trim();
+    const about = (draftTeam.about || "").trim();
 
     if (!name) {
-      setSaveError("Team name cannot be empty.");
+      setTeamSaveError("Team name cannot be empty.");
       return;
     }
 
-    setSaving(true);
-    setSaveError("");
+    setSavingTeam(true);
+    setTeamSaveError("");
 
-    // Only update columns we KNOW exist (prevents "column does not exist" errors)
     const patch = {};
     if (Object.prototype.hasOwnProperty.call(team, "name")) patch.name = name;
     if (Object.prototype.hasOwnProperty.call(team, "logo_url")) patch.logo_url = logo_url;
+    if (aboutFieldName) patch[aboutFieldName] = about;
 
-    if (aboutFieldName) {
-      patch[aboutFieldName] = about;
+    const { data, error } = await supabase
+      .from("teams")
+      .update(patch)
+      .eq("id", team.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Team update error:", error);
+      setTeamSaveError(error.message || "Update failed.");
+      setSavingTeam(false);
+      return;
     }
 
-    try {
-      const res = await supabase
-        .from("teams")
-        .update(patch)
-        .eq("id", team.id)
-        .select("*")
-        .single();
+    setTeam(data || team);
+    setEditingTeam(false);
+    setSavingTeam(false);
+  }
 
-      if (res.error) {
-        console.error("Team update error:", res.error);
-        setSaveError(res.error.message || "Update failed.");
-        return;
-      }
+  // ------------ KEY PLAYERS CRUD ------------
+  async function addKeyPlayer() {
+    if (!canEdit || !team?.id) return;
 
-      setTeam(res.data || team);
-      setEditing(false);
-    } catch (err) {
-      console.error("Team update crash:", err);
-      setSaveError("Update crashed. Check console.");
-    } finally {
-      setSaving(false);
+    const position = (newPlayer.position || "").trim();
+    const name = (newPlayer.name || "").trim();
+    const overallNum = Number(String(newPlayer.overall).trim());
+
+    if (!position || !name || !Number.isFinite(overallNum)) {
+      setPlayerSaveError("Fill out Position, Name, and Overall (number).");
+      return;
+    }
+
+    setPlayerSaveError("");
+    setPlayerBusyId("new");
+
+    const { data, error } = await supabase
+      .from("team_key_players")
+      .insert([{ team_id: team.id, position, name, overall: overallNum }])
+      .select("*")
+      .single();
+
+    setPlayerBusyId(null);
+
+    if (error) {
+      console.error("Add key player error:", error);
+      setPlayerSaveError(error.message || "Add failed.");
+      return;
+    }
+
+    setPlayers((prev) => {
+      const next = [...prev, data];
+      next.sort((a, b) => String(a.position).localeCompare(String(b.position)));
+      return next;
+    });
+
+    setNewPlayer({ position: "", name: "", overall: "" });
+  }
+
+  function startEditPlayer(p) {
+    setEditPlayerId(p.id);
+    setEditPlayerDraft({
+      position: p.position || "",
+      name: p.name || "",
+      overall: p.overall ?? "",
+    });
+    setPlayerSaveError("");
+  }
+
+  async function saveEditPlayer() {
+    if (!canEdit || !editPlayerId) return;
+
+    const position = (editPlayerDraft.position || "").trim();
+    const name = (editPlayerDraft.name || "").trim();
+    const overallNum = Number(String(editPlayerDraft.overall).trim());
+
+    if (!position || !name || !Number.isFinite(overallNum)) {
+      setPlayerSaveError("Fill out Position, Name, and Overall (number).");
+      return;
+    }
+
+    setPlayerSaveError("");
+    setPlayerBusyId(editPlayerId);
+
+    const { data, error } = await supabase
+      .from("team_key_players")
+      .update({ position, name, overall: overallNum })
+      .eq("id", editPlayerId)
+      .select("*")
+      .single();
+
+    setPlayerBusyId(null);
+
+    if (error) {
+      console.error("Update key player error:", error);
+      setPlayerSaveError(error.message || "Update failed.");
+      return;
+    }
+
+    setPlayers((cur) => {
+      const next = cur.map((p) => (p.id === editPlayerId ? data : p));
+      next.sort((a, b) => String(a.position).localeCompare(String(b.position)));
+      return next;
+    });
+
+    setEditPlayerId(null);
+  }
+
+  async function deletePlayer(id) {
+    if (!canEdit) return;
+    if (!confirm("Delete this key player?")) return;
+
+    setPlayerSaveError("");
+    setPlayerBusyId(id);
+
+    const prev = players;
+    setPlayers((cur) => cur.filter((p) => p.id !== id));
+
+    const { error } = await supabase.from("team_key_players").delete().eq("id", id);
+
+    setPlayerBusyId(null);
+
+    if (error) {
+      console.error("Delete key player error:", error);
+      setPlayerSaveError(error.message || "Delete failed.");
+      setPlayers(prev);
     }
   }
 
+  // ------------ SCHEDULE CRUD ------------
+  async function addGame() {
+    if (!canEdit || !team?.id) return;
+
+    const weekNum = Number(String(newGame.week).trim());
+    const opponent = (newGame.opponent || "").trim();
+    const oppRank = String(newGame.opponent_rank || "").trim();
+    const opponent_rank = oppRank ? Number(oppRank) : null;
+
+    const home_away = (newGame.home_away || "").trim();
+    const note = (newGame.note || "").trim();
+
+    if (!Number.isFinite(weekNum) || !opponent) {
+      setScheduleSaveError("Week must be a number and Opponent is required.");
+      return;
+    }
+    if (opponent_rank !== null && !Number.isFinite(opponent_rank)) {
+      setScheduleSaveError("Opponent rank must be a number (or blank).");
+      return;
+    }
+
+    setScheduleSaveError("");
+    setScheduleBusyId("new");
+
+    const { data, error } = await supabase
+      .from("team_schedule")
+      .insert([
+        {
+          team_id: team.id,
+          week: weekNum,
+          opponent,
+          opponent_rank,
+          home_away: home_away || null,
+          note: note || null,
+        },
+      ])
+      .select("*")
+      .single();
+
+    setScheduleBusyId(null);
+
+    if (error) {
+      console.error("Add game error:", error);
+      setScheduleSaveError(error.message || "Add failed.");
+      return;
+    }
+
+    setSchedule((prev) => {
+      const next = [...prev, data];
+      next.sort((a, b) => (a.week ?? 0) - (b.week ?? 0));
+      return next;
+    });
+
+    setNewGame({ week: "", opponent: "", opponent_rank: "", home_away: "", note: "" });
+  }
+
+  function startEditGame(g) {
+    setEditGameId(g.id);
+    setEditGameDraft({
+      week: g.week ?? "",
+      opponent: g.opponent || "",
+      opponent_rank: g.opponent_rank ?? "",
+      home_away: g.home_away || "",
+      note: g.note || "",
+    });
+    setScheduleSaveError("");
+  }
+
+  async function saveEditGame() {
+    if (!canEdit || !editGameId) return;
+
+    const weekNum = Number(String(editGameDraft.week).trim());
+    const opponent = (editGameDraft.opponent || "").trim();
+    const oppRank = String(editGameDraft.opponent_rank || "").trim();
+    const opponent_rank = oppRank ? Number(oppRank) : null;
+
+    const home_away = (editGameDraft.home_away || "").trim();
+    const note = (editGameDraft.note || "").trim();
+
+    if (!Number.isFinite(weekNum) || !opponent) {
+      setScheduleSaveError("Week must be a number and Opponent is required.");
+      return;
+    }
+    if (opponent_rank !== null && !Number.isFinite(opponent_rank)) {
+      setScheduleSaveError("Opponent rank must be a number (or blank).");
+      return;
+    }
+
+    setScheduleSaveError("");
+    setScheduleBusyId(editGameId);
+
+    const { data, error } = await supabase
+      .from("team_schedule")
+      .update({
+        week: weekNum,
+        opponent,
+        opponent_rank,
+        home_away: home_away || null,
+        note: note || null,
+      })
+      .eq("id", editGameId)
+      .select("*")
+      .single();
+
+    setScheduleBusyId(null);
+
+    if (error) {
+      console.error("Update game error:", error);
+      setScheduleSaveError(error.message || "Update failed.");
+      return;
+    }
+
+    setSchedule((cur) => {
+      const next = cur.map((g) => (g.id === editGameId ? data : g));
+      next.sort((a, b) => (a.week ?? 0) - (b.week ?? 0));
+      return next;
+    });
+
+    setEditGameId(null);
+  }
+
+  async function deleteGame(id) {
+    if (!canEdit) return;
+    if (!confirm("Delete this game from the schedule?")) return;
+
+    setScheduleSaveError("");
+    setScheduleBusyId(id);
+
+    const prev = schedule;
+    setSchedule((cur) => cur.filter((g) => g.id !== id));
+
+    const { error } = await supabase.from("team_schedule").delete().eq("id", id);
+
+    setScheduleBusyId(null);
+
+    if (error) {
+      console.error("Delete game error:", error);
+      setScheduleSaveError(error.message || "Delete failed.");
+      setSchedule(prev);
+    }
+  }
+
+  // ------------ RENDER ------------
   if (loading) {
     return (
       <div className="page teamPage">
@@ -288,7 +546,7 @@ export default function Team({
 
   if (!team) {
     return (
-      <div className="page">
+      <div className="page teamPage">
         <div className="card">
           <h2>Team not found</h2>
           <div className="muted">No team exists with slug: {slug}</div>
@@ -302,8 +560,11 @@ export default function Team({
     );
   }
 
+  const teamName = team?.name || "Team";
+  const heroLogo = team?.logo_url || "";
+
   return (
-    <div className="page">
+    <div className="page teamPage">
       {/* HERO */}
       <div className="team-hero">
         {heroLogo ? (
@@ -315,34 +576,32 @@ export default function Team({
         <div className="team-hero-title">{teamName}</div>
 
         {canEdit ? (
-          <div style={{ marginLeft: "auto" }}>
-            {!editing ? (
-              <button className="btn" type="button" onClick={() => setEditing(true)}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="badge" title="Commissioner Mode">
+              COMMISH
+            </div>
+            {!editingTeam ? (
+              <button className="btn" type="button" onClick={() => setEditingTeam(true)}>
                 Edit Team
               </button>
             ) : (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  className="btn primary"
-                  type="button"
-                  onClick={saveTeamEdits}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save"}
+                <button className="btn primary" type="button" onClick={saveTeamEdits} disabled={savingTeam}>
+                  {savingTeam ? "Saving..." : "Save"}
                 </button>
                 <button
                   className="btn"
                   type="button"
                   onClick={() => {
-                    setEditing(false);
-                    setSaveError("");
-                    setDraft({
+                    setEditingTeam(false);
+                    setTeamSaveError("");
+                    setDraftTeam({
                       name: team.name || "",
                       logo_url: team.logo_url || "",
                       about: aboutFieldName ? (team[aboutFieldName] || "") : "",
                     });
                   }}
-                  disabled={saving}
+                  disabled={savingTeam}
                 >
                   Cancel
                 </button>
@@ -352,17 +611,17 @@ export default function Team({
         ) : null}
       </div>
 
-      {/* EDIT PANEL */}
-      {canEdit && editing ? (
+      {/* TEAM EDIT PANEL */}
+      {canEdit && editingTeam ? (
         <div className="card" style={{ marginTop: 14 }}>
           <div className="cardHeader">
             <h2>Edit Team Page</h2>
             <div className="muted">Update the basics. Changes save to Supabase.</div>
           </div>
 
-          {saveError ? (
+          {teamSaveError ? (
             <div className="muted" style={{ color: "crimson", marginBottom: 10 }}>
-              {saveError}
+              {teamSaveError}
             </div>
           ) : null}
 
@@ -371,9 +630,9 @@ export default function Team({
               <input
                 className="input"
                 placeholder="Team name"
-                value={draft.name}
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                disabled={saving}
+                value={draftTeam.name}
+                onChange={(e) => setDraftTeam((d) => ({ ...d, name: e.target.value }))}
+                disabled={savingTeam}
               />
             </div>
 
@@ -381,9 +640,9 @@ export default function Team({
               <input
                 className="input"
                 placeholder="Logo URL (optional)"
-                value={draft.logo_url}
-                onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value }))}
-                disabled={saving}
+                value={draftTeam.logo_url}
+                onChange={(e) => setDraftTeam((d) => ({ ...d, logo_url: e.target.value }))}
+                disabled={savingTeam}
               />
             </div>
 
@@ -392,47 +651,153 @@ export default function Team({
                 className="textarea"
                 rows={5}
                 placeholder="About / Team Notes (optional)"
-                value={draft.about}
-                onChange={(e) => setDraft((d) => ({ ...d, about: e.target.value }))}
-                disabled={saving}
+                value={draftTeam.about}
+                onChange={(e) => setDraftTeam((d) => ({ ...d, about: e.target.value }))}
+                disabled={savingTeam}
               />
             ) : (
               <div className="muted" style={{ marginTop: 8 }}>
-                No “about/bio/description” column found on your <code>teams</code> table. If you want
-                one, add a column like <code>about</code> and it will show up here automatically.
+                No “about/bio/description” column found on your <code>teams</code> table. If you want one, add
+                a column like <code>about</code> and it will show up here automatically.
               </div>
             )}
           </div>
         </div>
       ) : null}
 
-      {/* BODY */}
       <div className="grid2" style={{ marginTop: 14 }}>
+        {/* KEY PLAYERS */}
         <div className="card">
-          <div className="cardHeader">
-            <h2>Key Players</h2>
+          <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h2>Key Players</h2>
+              <div className="muted">Spotlight players for the team page.</div>
+            </div>
+
+            {canEdit ? (
+              <button className="btn" type="button" onClick={() => setEditingPlayers((v) => !v)}>
+                {editingPlayers ? "Done" : "Edit"}
+              </button>
+            ) : null}
           </div>
+
+          {playerSaveError ? (
+            <div className="muted" style={{ color: "crimson", marginBottom: 10 }}>
+              {playerSaveError}
+            </div>
+          ) : null}
 
           {players.length ? (
             <div className="stack">
               {players.map((p) => (
-                <div key={p.id} className="kv">
+                <div key={p.id} className="kv" style={{ alignItems: "center" }}>
                   <div className="kvKey">{p.position}</div>
                   <div className="kvVal">
                     {p.name} <span className="muted">• OVR {p.overall}</span>
                   </div>
+
+                  {canEdit && editingPlayers ? (
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                      <button className="btn tiny" type="button" onClick={() => startEditPlayer(p)} disabled={playerBusyId === p.id}>
+                        Edit
+                      </button>
+                      <button className="btn tiny danger" type="button" onClick={() => deletePlayer(p.id)} disabled={playerBusyId === p.id}>
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
           ) : (
             <div className="muted">No key players yet.</div>
           )}
+
+          {canEdit && editingPlayers ? (
+            <div style={{ marginTop: 14 }}>
+              <div className="muted" style={{ marginBottom: 8, fontWeight: 900 }}>
+                {editPlayerId ? "Edit Player" : "Add Player"}
+              </div>
+
+              <div className="form">
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="Position (QB, HB, WR...)"
+                    value={editPlayerId ? editPlayerDraft.position : newPlayer.position}
+                    onChange={(e) =>
+                      editPlayerId
+                        ? setEditPlayerDraft((d) => ({ ...d, position: e.target.value }))
+                        : setNewPlayer((d) => ({ ...d, position: e.target.value }))
+                    }
+                    disabled={playerBusyId === "new" || playerBusyId === editPlayerId}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Name"
+                    value={editPlayerId ? editPlayerDraft.name : newPlayer.name}
+                    onChange={(e) =>
+                      editPlayerId
+                        ? setEditPlayerDraft((d) => ({ ...d, name: e.target.value }))
+                        : setNewPlayer((d) => ({ ...d, name: e.target.value }))
+                    }
+                    disabled={playerBusyId === "new" || playerBusyId === editPlayerId}
+                  />
+                  <input
+                    className="input"
+                    placeholder="OVR (number)"
+                    value={editPlayerId ? editPlayerDraft.overall : newPlayer.overall}
+                    onChange={(e) =>
+                      editPlayerId
+                        ? setEditPlayerDraft((d) => ({ ...d, overall: e.target.value }))
+                        : setNewPlayer((d) => ({ ...d, overall: e.target.value }))
+                    }
+                    disabled={playerBusyId === "new" || playerBusyId === editPlayerId}
+                    style={{ maxWidth: 140 }}
+                  />
+                </div>
+
+                <div className="row">
+                  {!editPlayerId ? (
+                    <button className="btn primary" type="button" onClick={addKeyPlayer} disabled={playerBusyId === "new"}>
+                      {playerBusyId === "new" ? "Adding..." : "Add Player"}
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn primary" type="button" onClick={saveEditPlayer} disabled={playerBusyId === editPlayerId}>
+                        {playerBusyId === editPlayerId ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button className="btn" type="button" onClick={() => setEditPlayerId(null)} disabled={playerBusyId === editPlayerId}>
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
+        {/* SCHEDULE */}
         <div className="card">
-          <div className="cardHeader">
-            <h2>Schedule</h2>
+          <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h2>Schedule</h2>
+              <div className="muted">Your weekly slate.</div>
+            </div>
+
+            {canEdit ? (
+              <button className="btn" type="button" onClick={() => setEditingSchedule((v) => !v)}>
+                {editingSchedule ? "Done" : "Edit"}
+              </button>
+            ) : null}
           </div>
+
+          {scheduleSaveError ? (
+            <div className="muted" style={{ color: "crimson", marginBottom: 10 }}>
+              {scheduleSaveError}
+            </div>
+          ) : null}
 
           {schedule.length ? (
             <ul className="list">
@@ -441,31 +806,130 @@ export default function Team({
                   <div className="headlineRow">
                     <div style={{ fontWeight: 900 }}>
                       Week {g.week}: {g.opponent || "TBD"}
-                      {g.opponent_rank ? (
-                        <span className="muted"> (#{g.opponent_rank})</span>
-                      ) : null}
+                      {g.opponent_rank ? <span className="muted"> (#{g.opponent_rank})</span> : null}
                     </div>
                     <div className="muted">{g.home_away || ""}</div>
                   </div>
+
                   {g.note ? <div className="muted">{g.note}</div> : null}
+
+                  {canEdit && editingSchedule ? (
+                    <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button className="btn tiny" type="button" onClick={() => startEditGame(g)} disabled={scheduleBusyId === g.id}>
+                        Edit
+                      </button>
+                      <button className="btn tiny danger" type="button" onClick={() => deleteGame(g.id)} disabled={scheduleBusyId === g.id}>
+                        Delete
+                      </button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
           ) : (
             <div className="muted">No schedule yet.</div>
           )}
+
+          {canEdit && editingSchedule ? (
+            <div style={{ marginTop: 14 }}>
+              <div className="muted" style={{ marginBottom: 8, fontWeight: 900 }}>
+                {editGameId ? "Edit Game" : "Add Game"}
+              </div>
+
+              <div className="form">
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="Week #"
+                    value={editGameId ? editGameDraft.week : newGame.week}
+                    onChange={(e) =>
+                      editGameId
+                        ? setEditGameDraft((d) => ({ ...d, week: e.target.value }))
+                        : setNewGame((d) => ({ ...d, week: e.target.value }))
+                    }
+                    disabled={scheduleBusyId === "new" || scheduleBusyId === editGameId}
+                    style={{ maxWidth: 120 }}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Opponent"
+                    value={editGameId ? editGameDraft.opponent : newGame.opponent}
+                    onChange={(e) =>
+                      editGameId
+                        ? setEditGameDraft((d) => ({ ...d, opponent: e.target.value }))
+                        : setNewGame((d) => ({ ...d, opponent: e.target.value }))
+                    }
+                    disabled={scheduleBusyId === "new" || scheduleBusyId === editGameId}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Opponent Rank (optional)"
+                    value={editGameId ? editGameDraft.opponent_rank : newGame.opponent_rank}
+                    onChange={(e) =>
+                      editGameId
+                        ? setEditGameDraft((d) => ({ ...d, opponent_rank: e.target.value }))
+                        : setNewGame((d) => ({ ...d, opponent_rank: e.target.value }))
+                    }
+                    disabled={scheduleBusyId === "new" || scheduleBusyId === editGameId}
+                    style={{ maxWidth: 220 }}
+                  />
+                </div>
+
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="Home/Away (optional) e.g. Home, Away, Neutral"
+                    value={editGameId ? editGameDraft.home_away : newGame.home_away}
+                    onChange={(e) =>
+                      editGameId
+                        ? setEditGameDraft((d) => ({ ...d, home_away: e.target.value }))
+                        : setNewGame((d) => ({ ...d, home_away: e.target.value }))
+                    }
+                    disabled={scheduleBusyId === "new" || scheduleBusyId === editGameId}
+                  />
+                </div>
+
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  placeholder="Note (optional) — rivalry, primetime, injury watch…"
+                  value={editGameId ? editGameDraft.note : newGame.note}
+                  onChange={(e) =>
+                    editGameId ? setEditGameDraft((d) => ({ ...d, note: e.target.value })) : setNewGame((d) => ({ ...d, note: e.target.value }))
+                  }
+                  disabled={scheduleBusyId === "new" || scheduleBusyId === editGameId}
+                />
+
+                <div className="row">
+                  {!editGameId ? (
+                    <button className="btn primary" type="button" onClick={addGame} disabled={scheduleBusyId === "new"}>
+                      {scheduleBusyId === "new" ? "Adding..." : "Add Game"}
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn primary" type="button" onClick={saveEditGame} disabled={scheduleBusyId === editGameId}>
+                        {scheduleBusyId === editGameId ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button className="btn" type="button" onClick={() => setEditGameId(null)} disabled={scheduleBusyId === editGameId}>
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
+      {/* TEAM NEWS */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="cardHeader">
           <h2>Team News</h2>
           {articlesLoading ? <div className="muted">Loading…</div> : null}
         </div>
 
-        {!articlesLoading && !articles.length ? (
-          <div className="muted">No tagged articles yet.</div>
-        ) : null}
+        {!articlesLoading && !articles.length ? <div className="muted">No tagged articles yet.</div> : null}
 
         {articles.length ? (
           <div className="grid" style={{ marginTop: 10 }}>
@@ -473,21 +937,11 @@ export default function Team({
               <div key={a.id} className="storyCard">
                 <div className="storyMeta">
                   <div className="badge">TEAM NEWS</div>
-                  {a.created_at ? (
-                    <div className="muted">
-                      {new Date(a.created_at).toLocaleDateString()}
-                    </div>
-                  ) : null}
+                  {a.created_at ? <div className="muted">{new Date(a.created_at).toLocaleDateString()}</div> : null}
                 </div>
                 <div className="storyTitle">{a.title || "Untitled"}</div>
                 <div className="storyExcerpt">{excerpt(a.body || a.content || a.excerpt)}</div>
-                <div className="actions">
-                  {a.url ? (
-                    <a className="btn small" href={a.url} target="_blank" rel="noreferrer">
-                      Read
-                    </a>
-                  ) : null}
-                </div>
+                <div className="actions">{a.url ? <a className="btn small" href={a.url} target="_blank" rel="noreferrer">Read</a> : null}</div>
               </div>
             ))}
           </div>
