@@ -2,18 +2,34 @@ import React, { useEffect, useMemo, useState } from "react";
 import PostCard from "../components/PostCard.jsx";
 
 /**
- * Social tab (Supabase-backed)
+ * Social (Supabase)
+ * Tables per your SUPABASE_SQL_V2.sql:
+ * - social_posts: id, created_at, display_name, content
+ * - social_votes: id, post_id, voter_key, value (1 or -1), created_at
+ * - social_replies: id, post_id, parent_reply_id, display_name, content, created_at
  *
- * Expected tables (default names):
- * - posts: id, created_at, display_name, content
- * - post_reactions: id, post_id, user_id, vote (1 = like, -1 = dislike)
- * - post_replies: id, post_id, created_at, display_name, content
- *
- * If your table names differ, change the constants below.
+ * Notes:
+ * - Votes are keyed by voter_key (NOT user_id). We create a stable voter_key per browser.
+ * - If user is signed in, we still use the browser key to stay compatible with your DB.
  */
-const POSTS_TABLE = "posts";
-const REACTIONS_TABLE = "post_reactions";
-const REPLIES_TABLE = "post_replies";
+
+const POSTS_TABLE = "social_posts";
+const VOTES_TABLE = "social_votes";
+const REPLIES_TABLE = "social_replies";
+const VOTER_KEY_STORAGE = "dynasty_voter_key_v1";
+
+function getOrCreateVoterKey() {
+  try {
+    const existing = localStorage.getItem(VOTER_KEY_STORAGE);
+    if (existing && existing.length >= 10) return existing;
+    const key = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(VOTER_KEY_STORAGE, key);
+    return key;
+  } catch {
+    // If localStorage blocked, fall back to a session key
+    return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
 
 export default function Social({ supabase, user, isCommish }) {
   const [loading, setLoading] = useState(true);
@@ -27,6 +43,8 @@ export default function Social({ supabase, user, isCommish }) {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
+
+  const voterKey = useMemo(() => getOrCreateVoterKey(), []);
 
   function flashNotice(msg) {
     setNotice(msg);
@@ -56,28 +74,28 @@ export default function Social({ supabase, user, isCommish }) {
     const list = p.data || [];
     const ids = list.map((x) => x.id);
 
-    // Load reactions for these posts, then aggregate in JS
-    let reactions = [];
+    // Votes
+    let votes = [];
     if (ids.length) {
-      const r = await supabase.from(REACTIONS_TABLE).select("post_id,user_id,vote").in("post_id", ids);
-      if (!r.error) reactions = r.data || [];
+      const v = await supabase.from(VOTES_TABLE).select("post_id,voter_key,value").in("post_id", ids);
+      if (!v.error) votes = v.data || [];
     }
 
     const likes = {};
     const dislikes = {};
     const mine = {};
 
-    for (const r of reactions) {
-      if (r.vote === 1) likes[r.post_id] = (likes[r.post_id] || 0) + 1;
-      if (r.vote === -1) dislikes[r.post_id] = (dislikes[r.post_id] || 0) + 1;
-      if (user?.id && r.user_id === user.id) mine[r.post_id] = r.vote;
+    for (const v of votes) {
+      if (v.value === 1) likes[v.post_id] = (likes[v.post_id] || 0) + 1;
+      if (v.value === -1) dislikes[v.post_id] = (dislikes[v.post_id] || 0) + 1;
+      if (v.voter_key === voterKey) mine[v.post_id] = v.value;
     }
 
-    // Load replies
+    // Replies
     let replies = [];
     if (ids.length) {
-      const rr = await supabase.from(REPLIES_TABLE).select("*").in("post_id", ids).order("created_at", { ascending: true });
-      if (!rr.error) replies = rr.data || [];
+      const r = await supabase.from(REPLIES_TABLE).select("*").in("post_id", ids).order("created_at", { ascending: true });
+      if (!r.error) replies = r.data || [];
     }
 
     const grouped = {};
@@ -86,7 +104,7 @@ export default function Social({ supabase, user, isCommish }) {
       grouped[rep.post_id].push(rep);
     }
 
-    // Attach counts
+    // Hydrate counts
     const hydrated = list.map((post) => ({
       ...post,
       likes: likes[post.id] || 0,
@@ -133,8 +151,8 @@ export default function Social({ supabase, user, isCommish }) {
 
     try {
       await supabase.from(POSTS_TABLE).delete().eq("id", id);
-      // Cleanup children (optional if you use FK cascade; safe to try)
-      await supabase.from(REACTIONS_TABLE).delete().eq("post_id", id);
+      // Child cleanup (safe even if FK cascade already handles it)
+      await supabase.from(VOTES_TABLE).delete().eq("post_id", id);
       await supabase.from(REPLIES_TABLE).delete().eq("post_id", id);
       flashNotice("Deleted.");
       await loadSocial();
@@ -144,28 +162,20 @@ export default function Social({ supabase, user, isCommish }) {
   }
 
   async function vote(postId, nextVote) {
-    if (!user?.id) {
-      flashError("Sign in to react.");
-      return;
-    }
-
+    // Your DB uses voter_key, not user_id
     const current = myVotesByPostId[postId]; // 1, -1, or undefined
     const shouldRemove = current === nextVote;
 
     try {
-      // Remove any existing vote for this user/post
-      await supabase
-        .from(REACTIONS_TABLE)
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", user.id);
+      // Remove any existing vote for this voter_key/post
+      await supabase.from(VOTES_TABLE).delete().eq("post_id", postId).eq("voter_key", voterKey);
 
       // Add if not removing
       if (!shouldRemove) {
-        const { error } = await supabase.from(REACTIONS_TABLE).insert({
+        const { error } = await supabase.from(VOTES_TABLE).insert({
           post_id: postId,
-          user_id: user.id,
-          vote: nextVote,
+          voter_key: voterKey,
+          value: nextVote,
         });
         if (error) throw error;
       }
@@ -182,6 +192,7 @@ export default function Social({ supabase, user, isCommish }) {
     try {
       const { error } = await supabase.from(REPLIES_TABLE).insert({
         post_id: postId,
+        parent_reply_id: null,
         display_name: (displayName || "").trim() || "Anonymous",
         content: content.trim(),
       });
@@ -217,7 +228,7 @@ export default function Social({ supabase, user, isCommish }) {
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="cardHeader">
           <h2>Create Post</h2>
-          <div className="muted">{user ? "Signed in" : "Sign in to react (posting is still allowed)."}</div>
+          <div className="muted">Anyone can post. Reactions use a browser-based voter key.</div>
         </div>
 
         <form className="form" onSubmit={addPost}>

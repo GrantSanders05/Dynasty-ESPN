@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Podcast tab (Supabase-backed)
+ * Podcast (Supabase)
+ * Based on your SUPABASE_SQL.sql:
+ * - podcast_episodes: id, created_at, title, description, file_path, public_url
+ * Storage:
+ * - bucket: podcasts (public)
  *
- * Expected table (default name): podcast_episodes
- * Columns (suggested):
- * - id, created_at
- * - title (text), description (text)
- * - audio_url (text, optional)  -> renders <audio controls>
- * - embed_url (text, optional)  -> renders <iframe> (Spotify, YouTube, etc)
- *
- * If your table is named differently, change EPISODES_TABLE below.
+ * Commissioner can upload an audio file or paste a public URL.
  */
+
 const EPISODES_TABLE = "podcast_episodes";
+const PODCAST_BUCKET = "podcasts";
+
+function safeFileName(name) {
+  return (name || "audio")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9._-]/g, "")
+    .slice(0, 80);
+}
 
 export default function Podcast({ supabase, isCommish }) {
   const [loading, setLoading] = useState(true);
@@ -23,8 +30,8 @@ export default function Podcast({ supabase, isCommish }) {
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
-  const [audioUrl, setAudioUrl] = useState("");
-  const [embedUrl, setEmbedUrl] = useState("");
+  const [file, setFile] = useState(null);
+  const [publicUrl, setPublicUrl] = useState("");
   const [posting, setPosting] = useState(false);
 
   function flashNotice(msg) {
@@ -62,22 +69,45 @@ export default function Podcast({ supabase, isCommish }) {
     e.preventDefault();
     if (!isCommish) return flashError("Commissioner only.");
     if (!title.trim()) return flashError("Title is required.");
+    if (!file && !publicUrl.trim()) return flashError("Choose an audio file OR paste a public URL.");
 
     setPosting(true);
     try {
+      let file_path = null;
+      let public_url = publicUrl.trim() || null;
+
+      // Upload file to Storage if provided
+      if (file) {
+        const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
+        const base = safeFileName(title.trim());
+        const path = `episodes/${Date.now()}-${base}.${ext}`;
+
+        const up = await supabase.storage.from(PODCAST_BUCKET).upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (up.error) throw up.error;
+
+        file_path = path;
+
+        const pub = supabase.storage.from(PODCAST_BUCKET).getPublicUrl(path);
+        public_url = pub?.data?.publicUrl || null;
+      }
+
       const { error } = await supabase.from(EPISODES_TABLE).insert({
         title: title.trim(),
         description: desc.trim() || null,
-        audio_url: audioUrl.trim() || null,
-        embed_url: embedUrl.trim() || null,
+        file_path: file_path || "external",
+        public_url: public_url,
       });
+
       if (error) throw error;
 
       flashNotice("Episode added.");
       setTitle("");
       setDesc("");
-      setAudioUrl("");
-      setEmbedUrl("");
+      setFile(null);
+      setPublicUrl("");
       await loadEpisodes();
     } catch (e2) {
       flashError(e2?.message || "Failed to add episode.");
@@ -86,19 +116,28 @@ export default function Podcast({ supabase, isCommish }) {
     }
   }
 
-  async function deleteEpisode(id) {
+  async function deleteEpisode(ep) {
     if (!isCommish) return;
     if (!confirm("Delete this episode?")) return;
 
     try {
-      const { error } = await supabase.from(EPISODES_TABLE).delete().eq("id", id);
+      // Delete DB row
+      const { error } = await supabase.from(EPISODES_TABLE).delete().eq("id", ep.id);
       if (error) throw error;
+
+      // Best-effort delete storage object if it looks like ours
+      if (ep.file_path && ep.file_path.startsWith("episodes/")) {
+        await supabase.storage.from(PODCAST_BUCKET).remove([ep.file_path]);
+      }
+
       flashNotice("Deleted.");
       await loadEpisodes();
     } catch (e) {
       flashError(e?.message || "Delete failed.");
     }
   }
+
+  const subtitle = useMemo(() => (loading ? "Loading..." : `${episodes.length} episodes`), [loading, episodes.length]);
 
   return (
     <div>
@@ -107,7 +146,7 @@ export default function Podcast({ supabase, isCommish }) {
           <h1 style={{ margin: 0 }}>Podcast</h1>
           <div className="muted">Weekly recap, hot takes, and rankings.</div>
         </div>
-        <div className="muted">{loading ? "Loading..." : `${episodes.length} episodes`}</div>
+        <div className="muted">{subtitle}</div>
       </div>
 
       {(notice || error) ? (
@@ -124,17 +163,31 @@ export default function Podcast({ supabase, isCommish }) {
           </div>
 
           <form className="form" onSubmit={addEpisode}>
-            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Episode title" />
             <textarea className="textarea" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description (optional)" />
-            <input className="input" value={audioUrl} onChange={(e) => setAudioUrl(e.target.value)} placeholder="Audio URL (optional)" />
-            <input className="input" value={embedUrl} onChange={(e) => setEmbedUrl(e.target.value)} placeholder="Embed URL (optional, Spotify/YouTube iframe src)" />
+
+            <div className="row">
+              <input
+                className="input"
+                type="file"
+                accept="audio/*"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              <input
+                className="input"
+                value={publicUrl}
+                onChange={(e) => setPublicUrl(e.target.value)}
+                placeholder="Or paste a public audio URL"
+              />
+            </div>
+
             <button className="btn primary" type="submit" disabled={posting}>
               {posting ? "Adding..." : "Add Episode"}
             </button>
           </form>
 
           <div className="muted" style={{ fontSize: 12 }}>
-            Tip: If you use Spotify embed, paste the <strong>iframe src</strong> (not the whole iframe).
+            Upload uses the <strong>{PODCAST_BUCKET}</strong> bucket and saves <strong>public_url</strong> in the table.
           </div>
         </div>
       ) : null}
@@ -150,30 +203,17 @@ export default function Podcast({ supabase, isCommish }) {
               <div className="episodeTitle">{ep.title}</div>
               {ep.description ? <div className="episodeDesc" style={{ whiteSpace: "pre-wrap" }}>{ep.description}</div> : null}
 
-              {ep.audio_url ? (
-                <audio controls style={{ width: "100%" }}>
-                  <source src={ep.audio_url} />
+              {ep.public_url ? (
+                <audio controls style={{ width: "100%", marginTop: 10 }}>
+                  <source src={ep.public_url} />
                 </audio>
-              ) : null}
-
-              {ep.embed_url ? (
-                <div style={{ marginTop: 10 }}>
-                  <iframe
-                    title={ep.title}
-                    src={ep.embed_url}
-                    width="100%"
-                    height="152"
-                    frameBorder="0"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                    style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)" }}
-                  />
-                </div>
-              ) : null}
+              ) : (
+                <div className="muted" style={{ marginTop: 10 }}>No public URL on this episode.</div>
+              )}
 
               {isCommish ? (
                 <div className="actions">
-                  <button className="btn danger small" type="button" onClick={() => deleteEpisode(ep.id)}>
+                  <button className="btn danger small" type="button" onClick={() => deleteEpisode(ep)}>
                     Delete
                   </button>
                 </div>

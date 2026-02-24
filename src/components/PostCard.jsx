@@ -174,12 +174,6 @@ export default function PostCard({
               />
             </form>
           ) : null}
-
-          {showThread && !showComposer ? (
-            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-              Tip: hit <strong>✍️ Reply</strong> to add to the thread.
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>
