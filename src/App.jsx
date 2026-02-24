@@ -143,7 +143,11 @@ export default function App() {
       <button className="btn primary" disabled={authLoading} type="submit">
         {authMode === "signup" ? "Sign up" : "Sign in"}
       </button>
-      <button className="btn" type="button" onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}>
+      <button
+        className="btn"
+        type="button"
+        onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}
+      >
         {authMode === "signup" ? "Have an account?" : "New here?"}
       </button>
     </form>
@@ -168,10 +172,7 @@ export default function App() {
           <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} />} />
           <Route path="/social" element={<Social supabase={supabase} user={user} isCommish={isCommish} />} />
           <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
-          <Route
-            path="/team/:slug"
-            element={<Team supabase={supabase} isCommish={isCommish} user={user} commishEmail={COMMISH_EMAIL} />}
-          />
+          <Route path="/team/:slug" element={<Team supabase={supabase} isCommish={isCommish} user={user} />} />
         </Routes>
       </main>
     </div>
