@@ -611,3 +611,65 @@ body::after{
 .cardHeader{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .rowMain{min-width:0;flex:1}
+
+/* ESPN-ish topbar */
+.topbar{position:sticky;top:0;z-index:50;background:#0b0d10;border-bottom:1px solid rgba(255,255,255,.08)}
+.topbarInner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0}
+.brandLink{text-decoration:none;color:inherit;display:block}
+.brandTitle{font-weight:900;letter-spacing:.5px}
+.brandSub{font-size:12px;opacity:.7;margin-top:2px}
+.nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.navDropdown{position:relative}
+.dropdown{position:absolute;top:42px;left:0;background:#0b0d10;border:1px solid rgba(255,255,255,.12);border-radius:10px;min-width:220px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.dropdownItem{display:block;padding:8px 10px;border-radius:8px;color:inherit;text-decoration:none}
+.dropdownItem:hover{background:rgba(255,255,255,.08)}
+.dropdownEmpty{padding:8px 10px;opacity:.7}
+.auth{display:flex;align-items:center;gap:10px}
+.authUser{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.authEmail{opacity:.85;font-size:13px}
+/* Accent: swap red -> your site green */
+:root{--accentGreen:#22c55e;--accentGreenDark:#16a34a}
+.pill{display:inline-block;background:var(--accentGreenDark);color:#fff;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.2px}
+
+/* Headline ticker */
+.tickerBar{display:flex;align-items:center;gap:10px;background:#111418;border-bottom:1px solid rgba(255,255,255,.08);padding:8px 12px;overflow:hidden}
+.tickerLabel{background:var(--accentGreenDark);color:#fff;font-weight:900;font-size:12px;padding:4px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.5px}
+.tickerItem{font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.3px}
+.tickerBar{box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.tickerViewport{position:relative;flex:1;overflow:hidden}
+.tickerTrack{display:inline-block;white-space:nowrap;will-change:transform;animation:tickerScroll linear infinite}
+.tickerItem{display:inline-block;margin-right:14px}
+.tickerItem a{color:inherit;text-decoration:none}
+.tickerItem a:hover{text-decoration:underline}
+.tickerSep{display:inline-block;margin-left:12px;opacity:.6}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* Team hero helpers (safe if unused) */
+.teamHero{
+  /* If your teams table has primary/secondary colors, Team.jsx sets CSS vars here */
+  background:
+    radial-gradient(1200px 300px at 15% 30%, color-mix(in srgb, var(--teamPrimary, var(--accentGreen)) 35%, transparent), transparent 60%),
+    radial-gradient(900px 260px at 70% 40%, color-mix(in srgb, var(--teamSecondary, #3b82f6) 28%, transparent), transparent 62%),
+    linear-gradient(180deg,#0b0d10,#10151d);
+  border-bottom:1px solid rgba(255,255,255,.08)
+}
+.teamHeroInner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0}
+.teamHeroLeft{display:flex;align-items:center;gap:12px}
+.teamHeroLogo{width:96px;height:96px;object-fit:contain;background:rgba(255,255,255,.06);border-radius:16px;padding:10px}
+.teamHeroTitle{font-size:28px;font-weight:950;text-shadow:0 6px 18px rgba(0,0,0,.35)}
+.teamHeroMeta{display:flex;align-items:center;gap:10px;margin-top:6px}
+
+/* Form rows (so Save button stays reachable) */
+.formRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.formRow > input{flex:1;min-width:140px}
+.formRow > .btn{white-space:nowrap}
+.teamHeroLogo.placeholder{display:flex;align-items:center;justify-content:center;font-size:12px;opacity:.7}
+.teamHeroTitle{font-size:22px;font-weight:900}
+.teamHeroMeta{display:flex;align-items:center;gap:10px;margin-top:2px}
+
+/* Simple layout helpers */
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.cardHeader{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rowMain{min-width:0;flex:1}
