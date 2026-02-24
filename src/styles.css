@@ -505,3 +505,36 @@ body::after{
   background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015));
   box-shadow: 0 8px 18px rgba(0,0,0,.18);
 }
+
+
+/* =========================================================
+   TEAM PAGE — clickability fix for edit forms
+   If anything overlays inputs (mobile/desktop), force forms above.
+   ========================================================= */
+.teamPage .card,
+.teamPage .grid2,
+.teamPage .team-hero{
+  position: relative;
+  z-index: 0;
+}
+
+.teamPage .cardHeader{
+  position: relative;
+  z-index: 1;
+}
+
+.teamPage .form,
+.teamPage .row,
+.teamPage .input,
+.teamPage .textarea,
+.teamPage button{
+  position: relative;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+/* Ensure pseudo elements never steal clicks */
+.teamPage *::before,
+.teamPage *::after{
+  pointer-events: none;
+}
