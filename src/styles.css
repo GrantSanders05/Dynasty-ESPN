@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;600;700;800;900&display=swap");
+
 :root{
   --bg:#0f1419;
   --card:#161f29;
@@ -28,16 +30,20 @@ html,body{height:100%}
 body{
   margin:0;
   color:var(--text);
-  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  font-family:'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   overflow-x:hidden;
 
-  /* Subtle broadcast texture + vignette */
-  background:
-    radial-gradient(900px 520px at 18% -10%, rgba(43,212,106,.16), transparent 62%),
-    radial-gradient(900px 520px at 90% 8%, rgba(47,137,255,.12), transparent 60%),
-    radial-gradient(700px 420px at 55% 110%, rgba(255,45,85,.08), transparent 60%),
-    var(--bg);
+  /* Animated broadcast backdrop */
+  background: linear-gradient(120deg, rgba(43,212,106,.10), rgba(47,137,255,.08), rgba(255,45,85,.05), rgba(0,0,0,0)) , var(--bg);
+  background-size: 220% 220%;
+  animation: bgShift 16s ease-in-out infinite;
 }
+@keyframes bgShift{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
 body::before{
   content:"";
   position:fixed;
@@ -520,3 +526,178 @@ audio{max-width:100%}
 
   .menu{left:0;right:auto;max-width:calc(100vw - 24px)}
 }
+
+
+
+/* =========================
+   TEAMS DROPDOWN REVAMP
+   (works even if markup varies)
+   ========================= */
+
+/* Common dropdown panel class names */
+.menu, .dropdownMenu, .teamsMenu, .teamsDropdown, .teams-menu, .teams-dropdown{
+  position:absolute;
+  top:calc(100% + 10px);
+  left:0;
+  min-width:260px;
+  max-width:min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  overflow:auto;
+  padding:10px;
+  border-radius:16px;
+  background:rgba(14,18,22,.96);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 26px 60px rgba(0,0,0,.55);
+  backdrop-filter: blur(10px);
+  z-index:999;
+}
+
+/* Make sure dropdown parent anchors positioning */
+.dropdown, .teamsDropdownWrap, .teamsDropdownTrigger{
+  position:relative;
+}
+
+/* Links inside dropdown */
+.menu a, .dropdownMenu a, .teamsMenu a, .teamsDropdown a, .teams-menu a, .teams-dropdown a{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:12px;
+  text-decoration:none;
+  font-weight:900;
+  color:var(--text);
+  border:1px solid transparent;
+  background:rgba(255,255,255,.02);
+  margin-bottom:8px;
+}
+.menu a:last-child, .dropdownMenu a:last-child, .teamsMenu a:last-child, .teamsDropdown a:last-child, .teams-menu a:last-child, .teams-dropdown a:last-child{
+  margin-bottom:0;
+}
+.menu a:hover, .dropdownMenu a:hover, .teamsMenu a:hover, .teamsDropdown a:hover, .teams-menu a:hover, .teams-dropdown a:hover{
+  background:rgba(43,212,106,.10);
+  border-color:rgba(43,212,106,.28);
+  transform:translateY(-1px);
+}
+
+/* If your current dropdown is accidentally rendering as a long inline row of links,
+   this will force it into a wrapped panel-like list when inside the nav bar */
+.nav .teamsInline, .nav .teamsRow, .nav .teamsList, .nav .teamsLinks{
+  position:absolute;
+  top:calc(100% + 10px);
+  left:0;
+  right:auto;
+  padding:10px;
+  border-radius:16px;
+  background:rgba(14,18,22,.96);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 26px 60px rgba(0,0,0,.55);
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:min(70vh, 520px);
+  overflow:auto;
+  z-index:999;
+}
+.nav .teamsInline a, .nav .teamsRow a, .nav .teamsList a, .nav .teamsLinks a{
+  display:block;
+  padding:10px 12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.02);
+  border:1px solid transparent;
+  text-decoration:none;
+  font-weight:900;
+}
+.nav .teamsInline a:hover, .nav .teamsRow a:hover, .nav .teamsList a:hover, .nav .teamsLinks a:hover{
+  background:rgba(43,212,106,.10);
+  border-color:rgba(43,212,106,.28);
+}
+
+/* Scrollbar polish */
+.menu::-webkit-scrollbar,
+.dropdownMenu::-webkit-scrollbar,
+.teamsMenu::-webkit-scrollbar{width:10px}
+.menu::-webkit-scrollbar-thumb,
+.dropdownMenu::-webkit-scrollbar-thumb,
+.teamsMenu::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px;border:2px solid rgba(0,0,0,.2)}
+
+
+/* =========================
+   OFFICIAL SPORTS HEADLINES
+   ========================= */
+.headlineWrap{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.headlineBanner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:14px 14px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(600px 180px at 20% 20%, rgba(43,212,106,.18), transparent 60%),
+    radial-gradient(600px 180px at 85% 45%, rgba(47,137,255,.14), transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  box-shadow: 0 14px 34px rgba(0,0,0,.35);
+}
+.headlineTitle{
+  margin:0;
+  font-family:'Oswald', 'Inter', system-ui, sans-serif;
+  font-weight:700;
+  font-size:24px;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+  line-height:1.05;
+}
+.headlineSub{
+  color:rgba(243,245,247,.86);
+  font-weight:700;
+  font-size:13px;
+  letter-spacing:.2px;
+}
+.headlinePill{
+  background:linear-gradient(180deg, rgba(43,212,106,.95), rgba(22,163,74,.92));
+  color:#062012;
+  border:1px solid rgba(43,212,106,.35);
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-size:11px;
+  white-space:nowrap;
+}
+/* If your headline cards use .listItem, make them pop */
+.listItem.headline,
+.headlineCard{
+  padding:12px 12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(520px 160px at 10% 10%, rgba(43,212,106,.14), transparent 60%),
+    radial-gradient(520px 160px at 90% 55%, rgba(47,137,255,.10), transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+}
+.headlineCard .link,
+.listItem.headline .link{
+  font-family:'Oswald','Inter',system-ui,sans-serif;
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+}
+
+
+/* =========================
+   FONT RAMP-UP (sports vibe)
+   ========================= */
+h1,h2,h3,.brandTitle,.tickerItem,.pageHeader h1{
+  font-family:'Oswald','Inter',system-ui,sans-serif;
+}
+.pageHeader h1{font-size:34px}
+.cardHeader h2{font-size:15px}
