@@ -688,13 +688,13 @@ export default function Team({
             </div>
           ) : null}
 
-          <div className="form">
+          <div className="form" style={{ position: "relative", zIndex: 1 }}>
             <div className="row">
               <input
                 className="input"
                 placeholder="Team name"
                 value={draftTeam.name}
-                onChange={(e) => setDraftTeam((d) => ({ ...d, name: e.target.value }))}
+                onChange={(e) = style={{ pointerEvents: "auto" }}> setDraftTeam((d) => ({ ...d, name: e.target.value }))}
                 disabled={savingTeam}
               />
             </div>
@@ -704,7 +704,7 @@ export default function Team({
                 className="input"
                 placeholder="Logo URL (optional)"
                 value={draftTeam.logo_url}
-                onChange={(e) => setDraftTeam((d) => ({ ...d, logo_url: e.target.value }))}
+                onChange={(e) = style={{ pointerEvents: "auto" }}> setDraftTeam((d) => ({ ...d, logo_url: e.target.value }))}
                 disabled={savingTeam}
               />
             </div>
@@ -715,7 +715,7 @@ export default function Team({
                 rows={5}
                 placeholder="About / Team Notes (optional)"
                 value={draftTeam.about}
-                onChange={(e) => setDraftTeam((d) => ({ ...d, about: e.target.value }))}
+                onChange={(e) = style={{ pointerEvents: "auto" }}> setDraftTeam((d) => ({ ...d, about: e.target.value }))}
                 disabled={savingTeam}
               />
             ) : (
@@ -731,7 +731,7 @@ export default function Team({
       {/* KEY PLAYERS + SCHEDULE */}
       <div className="grid2" style={{ marginTop: 14 }}>
         {/* KEY PLAYERS */}
-        <div className="card">
+        <div className="card" style={{ position: "relative" }}>
           <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <div>
               <h2>Key Players</h2>
@@ -793,13 +793,13 @@ export default function Team({
                 {editPlayerId ? "Edit Player" : "Add Player"}
               </div>
 
-              <div className="form">
+              <div className="form" style={{ position: "relative", zIndex: 1 }}>
                 <div className="row">
                   <input
                     className="input"
                     placeholder="Position (QB, HB, WR...)"
                     value={editPlayerId ? editPlayerDraft.position : newPlayer.position}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editPlayerId
                         ? setEditPlayerDraft((d) => ({ ...d, position: e.target.value }))
                         : setNewPlayer((d) => ({ ...d, position: e.target.value }))
@@ -810,7 +810,7 @@ export default function Team({
                     className="input"
                     placeholder="Name"
                     value={editPlayerId ? editPlayerDraft.name : newPlayer.name}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editPlayerId
                         ? setEditPlayerDraft((d) => ({ ...d, name: e.target.value }))
                         : setNewPlayer((d) => ({ ...d, name: e.target.value }))
@@ -821,7 +821,7 @@ export default function Team({
                     className="input"
                     placeholder="OVR (number)"
                     value={editPlayerId ? editPlayerDraft.overall : newPlayer.overall}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editPlayerId
                         ? setEditPlayerDraft((d) => ({ ...d, overall: e.target.value }))
                         : setNewPlayer((d) => ({ ...d, overall: e.target.value }))
@@ -868,7 +868,7 @@ export default function Team({
         </div>
 
         {/* SCHEDULE */}
-        <div className="card">
+        <div className="card" style={{ position: "relative" }}>
           <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <div>
               <h2>Schedule</h2>
@@ -934,13 +934,13 @@ export default function Team({
                 {editGameId ? "Edit Game" : "Add Game"}
               </div>
 
-              <div className="form">
+              <div className="form" style={{ position: "relative", zIndex: 1 }}>
                 <div className="row">
                   <input
                     className="input"
                     placeholder="Week #"
                     value={editGameId ? editGameDraft.week : newGame.week}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editGameId
                         ? setEditGameDraft((d) => ({ ...d, week: e.target.value }))
                         : setNewGame((d) => ({ ...d, week: e.target.value }))
@@ -952,7 +952,7 @@ export default function Team({
                     className="input"
                     placeholder="Opponent"
                     value={editGameId ? editGameDraft.opponent : newGame.opponent}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editGameId
                         ? setEditGameDraft((d) => ({ ...d, opponent: e.target.value }))
                         : setNewGame((d) => ({ ...d, opponent: e.target.value }))
@@ -963,7 +963,7 @@ export default function Team({
                     className="input"
                     placeholder="Opponent Rank (optional)"
                     value={editGameId ? editGameDraft.opponent_rank : newGame.opponent_rank}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editGameId
                         ? setEditGameDraft((d) => ({ ...d, opponent_rank: e.target.value }))
                         : setNewGame((d) => ({ ...d, opponent_rank: e.target.value }))
@@ -978,7 +978,7 @@ export default function Team({
                     className="input"
                     placeholder="Home/Away (optional) e.g. Home, Away, Neutral"
                     value={editGameId ? editGameDraft.home_away : newGame.home_away}
-                    onChange={(e) =>
+                    onChange={(e) = style={{ pointerEvents: "auto" }}>
                       editGameId
                         ? setEditGameDraft((d) => ({ ...d, home_away: e.target.value }))
                         : setNewGame((d) => ({ ...d, home_away: e.target.value }))
@@ -992,7 +992,7 @@ export default function Team({
                   rows={3}
                   placeholder="Note (optional) — rivalry, primetime, injury watch…"
                   value={editGameId ? editGameDraft.note : newGame.note}
-                  onChange={(e) =>
+                  onChange={(e) = style={{ pointerEvents: "auto" }}>
                     editGameId
                       ? setEditGameDraft((d) => ({ ...d, note: e.target.value }))
                       : setNewGame((d) => ({ ...d, note: e.target.value }))
