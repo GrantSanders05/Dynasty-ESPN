@@ -1,11 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 
+/**
+ * Team Page (UI restored to the "dcf" look)
+ * - Keeps the current working main-branch functionality (CRUD for key players + schedule)
+ * - ONLY changes markup/classes so it matches the dcf visual layout (hero + cards)
+ */
 export default function Team({ supabase, isCommish }) {
   const { slug } = useParams();
+
   const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const [editMode, setEditMode] = useState(false);
 
   // Key players
@@ -21,20 +26,32 @@ export default function Team({ supabase, isCommish }) {
   const [opponent, setOpponent] = useState("");
   const [result, setResult] = useState("");
 
-  const canEdit = isCommish;
+  const canEdit = !!isCommish;
 
   async function load() {
     setLoading(true);
 
     const t = await supabase.from("teams").select("*").eq("slug", slug).single();
-    setTeam(t.data || null);
+    const teamRow = t.data || null;
+    setTeam(teamRow);
 
-    if (t.data?.id) {
-      const kp = await supabase.from("team_key_players").select("*").eq("team_id", t.data.id).order("created_at", { ascending: false });
+    if (teamRow?.id) {
+      const kp = await supabase
+        .from("team_key_players")
+        .select("*")
+        .eq("team_id", teamRow.id)
+        .order("created_at", { ascending: false });
       setPlayers(kp.data || []);
 
-      const sch = await supabase.from("team_schedule").select("*").eq("team_id", t.data.id).order("week", { ascending: true });
+      const sch = await supabase
+        .from("team_schedule")
+        .select("*")
+        .eq("team_id", teamRow.id)
+        .order("week", { ascending: true });
       setGames(sch.data || []);
+    } else {
+      setPlayers([]);
+      setGames([]);
     }
 
     setLoading(false);
@@ -44,8 +61,6 @@ export default function Team({ supabase, isCommish }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
-
-  const teamName = team?.name || "Team";
 
   async function addPlayer(e) {
     e.preventDefault();
@@ -58,6 +73,7 @@ export default function Team({ supabase, isCommish }) {
       name: name.trim(),
       overall: Number(ovr),
     });
+
     if (!error) {
       setPos("");
       setName("");
@@ -99,102 +115,218 @@ export default function Team({ supabase, isCommish }) {
     await load();
   }
 
-  if (loading) return <div className="muted">Loading…</div>;
-  if (!team) return <div className="muted">Team not found.</div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="muted">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!team) {
+    return (
+      <div className="page">
+        <div className="pageHeader">
+          <h1>Team not found</h1>
+          <Link className="btn" to="/">
+            Back to Home
+          </Link>
+        </div>
+        <div className="muted">No team exists with slug: {slug}</div>
+      </div>
+    );
+  }
+
+  const teamName = team?.name || "Team";
+  const heroLogo = team?.logo_url || "";
 
   return (
-    <div>
+    <div className="page">
+      {/* HERO (dcf look) */}
       <div className="teamHero">
         <div className="teamHeroHeader">
+          <div className="teamLogoHero" aria-label={`${teamName} logo`}>
+            {heroLogo ? (
+              <img className="teamLogoImg" src={heroLogo} alt={`${teamName} logo`} />
+            ) : (
+              <div className="muted" style={{ fontWeight: 900 }}>
+                No logo set yet
+              </div>
+            )}
+          </div>
+
           <div className="teamHeroText">
             <div className="teamNameBig">{teamName}</div>
+
             <div className="teamMeta">
-              {canEdit ? <span className="badge">COMMISH</span> : null}
+              <span className="pill">Slug: {slug}</span>
+              {canEdit ? <span className="pill warn">COMMISH</span> : null}
             </div>
+
+            {canEdit ? (
+              <div className="teamHeroEdit">
+                <button className="btn" type="button" onClick={() => setEditMode((v) => !v)}>
+                  {editMode ? "Done" : "Edit Team"}
+                </button>
+              </div>
+            ) : null}
           </div>
-          {canEdit ? (
-            <div className="teamHeroActions">
-              <button className="btn" type="button" onClick={() => setEditMode((v) => !v)}>
-                {editMode ? "Done" : "Edit Team"}
-              </button>
-            </div>
-          ) : null}
+
+          <div className="teamHeroActions">
+            {/* reserved for future hero actions without changing layout */}
+          </div>
         </div>
       </div>
 
-      <div className="grid2">
+      {/* CONTENT GRID (dcf look) */}
+      <div className="grid2" style={{ marginTop: 14 }}>
+        {/* KEY PLAYERS */}
         <div className="card">
-          <div className="cardHeader">
-            <h2>Key Players</h2>
-            {editMode ? <span className="muted">Spotlight players for the team page.</span> : null}
+          <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h2>Key Players</h2>
+              <div className="muted">Spotlight players for the team page.</div>
+            </div>
+            {canEdit ? (
+              <button className="btn" type="button" onClick={() => setEditMode((v) => !v)}>
+                {editMode ? "Done" : "Edit"}
+              </button>
+            ) : null}
           </div>
 
-          {players.length === 0 ? <div className="muted">No key players yet.</div> : (
-            <div className="list" style={{ marginTop: 10 }}>
+          {players.length ? (
+            <div className="stack">
               {players.map((p) => (
-                <div className="listItem" key={p.id}>
-                  <div className="headlineRow">
-                    <div style={{ fontWeight: 900 }}>{p.position} — {p.name}</div>
-                    <div className="badge">OVR {p.overall}</div>
+                <div key={p.id} className="kv" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ minWidth: 70 }}>
+                    <div className="kvKey">{p.position}</div>
                   </div>
-                  {editMode ? (
-                    <div className="actions">
-                      <button className="btn danger small" type="button" onClick={() => deletePlayer(p.id)}>Delete</button>
+                  <div className="kvVal">
+                    {p.name} <span className="muted">• OVR {p.overall}</span>
+                  </div>
+
+                  {canEdit && editMode ? (
+                    <div style={{ marginLeft: "auto" }}>
+                      <button className="btn tiny danger" type="button" onClick={() => deletePlayer(p.id)}>
+                        Delete
+                      </button>
                     </div>
                   ) : null}
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="muted">No key players yet.</div>
           )}
 
-          {editMode ? (
-            <form className="form" onSubmit={addPlayer} style={{ marginTop: 12 }}>
-              <div className="muted" style={{ color: "var(--danger)", fontWeight: 700 }}>
-                Fill out Position, Name, and Overall (number).
+          {canEdit && editMode ? (
+            <div style={{ marginTop: 14 }}>
+              <div className="muted" style={{ marginBottom: 8, fontWeight: 900 }}>
+                Add Player
               </div>
-              <div className="row">
-                <input ref={posRef} className="input" value={pos} onChange={(e) => setPos(e.target.value)} placeholder="Position (QB, HB, WR…)" />
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
-                <input className="input" value={ovr} onChange={(e) => setOvr(e.target.value)} placeholder="OVR (number)" type="number" />
-              </div>
-              <button className="btn primary" type="submit">Add Player</button>
-            </form>
+              <form className="form" onSubmit={addPlayer}>
+                <div className="row">
+                  <input
+                    ref={posRef}
+                    className="input"
+                    placeholder="Position (QB, HB, WR...)"
+                    value={pos}
+                    onChange={(e) => setPos(e.target.value)}
+                  />
+                  <input className="input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+                  <input
+                    className="input"
+                    placeholder="OVR (number)"
+                    type="number"
+                    value={ovr}
+                    onChange={(e) => setOvr(e.target.value)}
+                    style={{ maxWidth: 160 }}
+                  />
+                </div>
+                <div className="row">
+                  <button className="btn primary" type="submit">
+                    Add Player
+                  </button>
+                </div>
+              </form>
+            </div>
           ) : null}
         </div>
 
+        {/* SCHEDULE */}
         <div className="card">
-          <div className="cardHeader">
-            <h2>Schedule</h2>
-            {editMode ? <span className="muted">Add or update weekly results.</span> : null}
+          <div className="cardHeader" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h2>Schedule</h2>
+              <div className="muted">Your weekly slate.</div>
+            </div>
+            {canEdit ? (
+              <button className="btn" type="button" onClick={() => setEditMode((v) => !v)}>
+                {editMode ? "Done" : "Edit"}
+              </button>
+            ) : null}
           </div>
 
-          {games.length === 0 ? <div className="muted">No games yet.</div> : (
-            <div className="list" style={{ marginTop: 10 }}>
+          {games.length ? (
+            <ul className="list">
               {games.map((g) => (
-                <div className="listItem" key={g.id}>
+                <li key={g.id} className="listItem">
                   <div className="headlineRow">
-                    <div style={{ fontWeight: 900 }}>Week {g.week}: {g.opponent}</div>
+                    <div style={{ fontWeight: 900 }}>
+                      Week {g.week}: {g.opponent}
+                    </div>
                     <div className="muted">{g.result || "TBD"}</div>
                   </div>
-                  {editMode ? (
-                    <div className="actions">
-                      <button className="btn danger small" type="button" onClick={() => deleteGame(g.id)}>Delete</button>
+
+                  {canEdit && editMode ? (
+                    <div style={{ marginTop: 10 }}>
+                      <button className="btn tiny danger" type="button" onClick={() => deleteGame(g.id)}>
+                        Delete
+                      </button>
                     </div>
                   ) : null}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
+          ) : (
+            <div className="muted">No games yet.</div>
           )}
 
-          {editMode ? (
-            <form className="form" onSubmit={addGame} style={{ marginTop: 12 }}>
-              <div className="row">
-                <input className="input" value={week} onChange={(e) => setWeek(e.target.value)} placeholder="Week #" type="number" />
-                <input className="input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Opponent" />
-                <input className="input" value={result} onChange={(e) => setResult(e.target.value)} placeholder="Result (optional)" />
+          {canEdit && editMode ? (
+            <div style={{ marginTop: 14 }}>
+              <div className="muted" style={{ marginBottom: 8, fontWeight: 900 }}>
+                Add Game
               </div>
-              <button className="btn primary" type="submit">Add Game</button>
-            </form>
+              <form className="form" onSubmit={addGame}>
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="Week #"
+                    type="number"
+                    value={week}
+                    onChange={(e) => setWeek(e.target.value)}
+                    style={{ maxWidth: 140 }}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Opponent"
+                    value={opponent}
+                    onChange={(e) => setOpponent(e.target.value)}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Result (optional)"
+                    value={result}
+                    onChange={(e) => setResult(e.target.value)}
+                  />
+                </div>
+                <div className="row">
+                  <button className="btn primary" type="submit">
+                    Add Game
+                  </button>
+                </div>
+              </form>
+            </div>
           ) : null}
         </div>
       </div>
