@@ -507,3 +507,64 @@ body::after{
 }
 
 
+/* =========================================================
+   TEAM PAGE — clickability fix for edit forms
+   If anything overlays inputs (mobile/desktop), force forms above.
+   ========================================================= */
+.teamPage .card,
+.teamPage .grid2,
+.teamPage .team-hero{
+  position: relative;
+  z-index: 0;
+}
+
+.teamPage .cardHeader{
+  position: relative;
+  z-index: 1;
+}
+
+.teamPage .form,
+.teamPage .row,
+.teamPage .input,
+.teamPage .textarea,
+.teamPage button{
+  position: relative;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+/* Ensure pseudo elements never steal clicks */
+.teamPage *::before,
+.teamPage *::after{
+  pointer-events: none;
+}
+
+/* =========================================================
+   TEAM PAGE — inputs not clickable (targeted fix)
+   Cause: an overlay / pseudo-element is sitting above inputs.
+   Fix: make overlays ignore clicks; keep inputs/buttons clickable.
+   ========================================================= */
+.teamPage .team-hero::before,
+.teamPage .team-hero::after,
+.teamPage .card::before,
+.teamPage .card::after,
+.teamPage .listItem::before,
+.teamPage .listItem::after,
+.teamPage .storyCard::before,
+.teamPage .storyCard::after{
+  pointer-events: none !important;
+}
+
+.teamPage .form{
+  position: relative;
+  z-index: 3;
+}
+
+.teamPage .form .input,
+.teamPage .form .textarea,
+.teamPage .form button{
+  position: relative;
+  z-index: 4;
+  pointer-events: auto !important;
+}
+
