@@ -1,17 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import { supabase as defaultSupabase } from "../supabaseClient";
 
 /**
  * Team Page
- * Fix: load tagged articles via a 2-step query:
- *  1) SELECT article_id FROM article_teams WHERE team_id = <team.id>
- *  2) SELECT * FROM articles WHERE id IN (<article_ids>)
+ * - Shows: hero, key players, schedule, team news (tagged articles)
+ * - Restores: commissioner editing (name/logo + one "about" field if present)
  *
- * This works even if you don't have FK relationships configured for auto-joins.
+ * Notes:
+ * - Editing is safe: we only update columns that actually exist on the team row.
+ * - Commish detection:
+ *    1) isCommish prop (preferred)
+ *    2) user + commishEmail props (fallback)
  */
-export default function Team() {
+export default function Team({
+  supabase = defaultSupabase,
+  isCommish = false,
+  user = null,
+  commishEmail = "",
+}) {
   const { slug } = useParams();
+
+  const canEdit = useMemo(() => {
+    if (isCommish) return true;
+    const e = (user?.email || "").toLowerCase();
+    const c = (commishEmail || "").toLowerCase();
+    return !!e && !!c && e === c;
+  }, [isCommish, user, commishEmail]);
 
   const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +36,23 @@ export default function Team() {
 
   const [players, setPlayers] = useState([]);
   const [schedule, setSchedule] = useState([]);
+
+  // --- Editing ---
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [draft, setDraft] = useState({
+    name: "",
+    logo_url: "",
+    about: "",
+  });
+
+  // Prefer an "about" column if it exists (so we don't guess wrong column names)
+  const aboutFieldName = useMemo(() => {
+    if (!team) return "";
+    const candidates = ["about", "bio", "description", "blurb", "summary"];
+    return candidates.find((c) => Object.prototype.hasOwnProperty.call(team, c)) || "";
+  }, [team]);
 
   const teamName = team?.name || "Team";
   const heroLogo = team?.logo_url || "";
@@ -33,6 +65,7 @@ export default function Team() {
     };
   }, []);
 
+  // Load team by slug
   useEffect(() => {
     let alive = true;
 
@@ -63,7 +96,19 @@ export default function Team() {
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, supabase]);
+
+  // When team loads, seed editor draft (but don't overwrite while actively editing)
+  useEffect(() => {
+    if (!team) return;
+    if (editing) return;
+
+    setDraft({
+      name: team.name || "",
+      logo_url: team.logo_url || "",
+      about: aboutFieldName ? (team[aboutFieldName] || "") : "",
+    });
+  }, [team, aboutFieldName, editing]);
 
   // Key players (optional table)
   useEffect(() => {
@@ -93,7 +138,7 @@ export default function Team() {
     return () => {
       alive = false;
     };
-  }, [team?.id]);
+  }, [team?.id, supabase]);
 
   // Schedule (optional table)
   useEffect(() => {
@@ -123,7 +168,7 @@ export default function Team() {
     return () => {
       alive = false;
     };
-  }, [team?.id]);
+  }, [team?.id, supabase]);
 
   // Tagged articles
   useEffect(() => {
@@ -180,7 +225,56 @@ export default function Team() {
     return () => {
       alive = false;
     };
-  }, [team?.id]);
+  }, [team?.id, supabase]);
+
+  async function saveTeamEdits() {
+    if (!canEdit || !team?.id) return;
+    if (saving) return;
+
+    const name = (draft.name || "").trim();
+    const logo_url = (draft.logo_url || "").trim();
+    const about = (draft.about || "").trim();
+
+    if (!name) {
+      setSaveError("Team name cannot be empty.");
+      return;
+    }
+
+    setSaving(true);
+    setSaveError("");
+
+    // Only update columns we KNOW exist (prevents "column does not exist" errors)
+    const patch = {};
+    if (Object.prototype.hasOwnProperty.call(team, "name")) patch.name = name;
+    if (Object.prototype.hasOwnProperty.call(team, "logo_url")) patch.logo_url = logo_url;
+
+    if (aboutFieldName) {
+      patch[aboutFieldName] = about;
+    }
+
+    try {
+      const res = await supabase
+        .from("teams")
+        .update(patch)
+        .eq("id", team.id)
+        .select("*")
+        .single();
+
+      if (res.error) {
+        console.error("Team update error:", res.error);
+        setSaveError(res.error.message || "Update failed.");
+        return;
+      }
+
+      setTeam(res.data || team);
+      setEditing(false);
+    } catch (err) {
+      console.error("Team update crash:", err);
+      setSaveError("Update crashed. Check console.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -210,16 +304,110 @@ export default function Team() {
 
   return (
     <div className="page">
+      {/* HERO */}
       <div className="team-hero">
         {heroLogo ? (
           <img className="team-hero-logo" src={heroLogo} alt={teamName} />
         ) : (
           <div className="muted">No logo set yet</div>
         )}
+
         <div className="team-hero-title">{teamName}</div>
+
+        {canEdit ? (
+          <div style={{ marginLeft: "auto" }}>
+            {!editing ? (
+              <button className="btn" type="button" onClick={() => setEditing(true)}>
+                Edit Team
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  className="btn primary"
+                  type="button"
+                  onClick={saveTeamEdits}
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setSaveError("");
+                    setDraft({
+                      name: team.name || "",
+                      logo_url: team.logo_url || "",
+                      about: aboutFieldName ? (team[aboutFieldName] || "") : "",
+                    });
+                  }}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid2">
+      {/* EDIT PANEL */}
+      {canEdit && editing ? (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="cardHeader">
+            <h2>Edit Team Page</h2>
+            <div className="muted">Update the basics. Changes save to Supabase.</div>
+          </div>
+
+          {saveError ? (
+            <div className="muted" style={{ color: "crimson", marginBottom: 10 }}>
+              {saveError}
+            </div>
+          ) : null}
+
+          <div className="form">
+            <div className="row">
+              <input
+                className="input"
+                placeholder="Team name"
+                value={draft.name}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="row">
+              <input
+                className="input"
+                placeholder="Logo URL (optional)"
+                value={draft.logo_url}
+                onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value }))}
+                disabled={saving}
+              />
+            </div>
+
+            {aboutFieldName ? (
+              <textarea
+                className="textarea"
+                rows={5}
+                placeholder="About / Team Notes (optional)"
+                value={draft.about}
+                onChange={(e) => setDraft((d) => ({ ...d, about: e.target.value }))}
+                disabled={saving}
+              />
+            ) : (
+              <div className="muted" style={{ marginTop: 8 }}>
+                No “about/bio/description” column found on your <code>teams</code> table. If you want
+                one, add a column like <code>about</code> and it will show up here automatically.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* BODY */}
+      <div className="grid2" style={{ marginTop: 14 }}>
         <div className="card">
           <div className="cardHeader">
             <h2>Key Players</h2>
@@ -292,17 +480,10 @@ export default function Team() {
                   ) : null}
                 </div>
                 <div className="storyTitle">{a.title || "Untitled"}</div>
-                <div className="storyExcerpt">
-                  {excerpt(a.body || a.content || a.excerpt)}
-                </div>
+                <div className="storyExcerpt">{excerpt(a.body || a.content || a.excerpt)}</div>
                 <div className="actions">
                   {a.url ? (
-                    <a
-                      className="btn small"
-                      href={a.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a className="btn small" href={a.url} target="_blank" rel="noreferrer">
                       Read
                     </a>
                   ) : null}
