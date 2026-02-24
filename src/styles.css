@@ -568,3 +568,26 @@ body::after{
   pointer-events: auto !important;
 }
 
+
+/* =========================================================
+   HARD CLICK FIX (Inputs not focusable)
+   If any overlay is sitting above form fields, force inputs/textareas above it.
+   This is intentionally strong but limited to form controls.
+   ========================================================= */
+input, textarea, select {
+  position: relative;
+  z-index: 9999;
+  pointer-events: auto !important;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+input:disabled, textarea:disabled, select:disabled {
+  pointer-events: none !important;
+}
+
+/* If any pseudo-element overlays exist anywhere, never let them steal clicks */
+*::before, *::after {
+  pointer-events: none;
+}
