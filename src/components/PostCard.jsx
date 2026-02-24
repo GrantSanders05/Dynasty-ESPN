@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 function timeAgo(iso) {
   try {
@@ -19,6 +19,7 @@ function timeAgo(iso) {
 
 export default function PostCard({
   post,
+  myVote, // 1 (liked), -1 (disliked), or undefined
   isCommish,
   onDelete,
   onVote,
@@ -32,23 +33,36 @@ export default function PostCard({
 
   const canSubmit = replyText.trim().length > 0 && !sending;
 
+  // Keep thread order stable even if parent passes unsorted
+  const sortedReplies = useMemo(() => {
+    const arr = [...replies];
+    arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    return arr;
+  }, [replies]);
+
   async function submitReply(e) {
     e.preventDefault();
     if (!canSubmit) return;
 
     setSending(true);
     try {
-      // Await so the user sees a real submit behavior, and so Social.jsx can refresh after insert.
       await onReply(post.id, replyName, replyText);
       setReplyText("");
-      // Optional: keep the name for convenience (matches Create Post behavior).
-      // Optional: keep the reply box open for ongoing thread.
-      // If you want it to auto-close after successful reply, uncomment:
-      // setShowReply(false);
+      // ESPN-ish: keep thread open so it feels like a live comment section
+      if (!showReply) setShowReply(true);
     } finally {
       setSending(false);
     }
   }
+
+  const likeActive = myVote === 1;
+  const dislikeActive = myVote === -1;
+
+  const pillStyle = (active) => ({
+    border: active ? "1px solid rgba(255,255,255,0.22)" : undefined,
+    boxShadow: active ? "0 0 0 2px rgba(255,255,255,0.06) inset" : undefined,
+    transform: active ? "translateY(-1px)" : undefined,
+  });
 
   return (
     <div className="post">
@@ -65,24 +79,34 @@ export default function PostCard({
           type="button"
           onClick={() => onVote(post.id, 1)}
           disabled={sending}
+          title={likeActive ? "Click again to remove like" : "Like"}
+          aria-pressed={likeActive}
+          style={pillStyle(likeActive)}
         >
           👍 <span className="count">{post.likes || 0}</span>
         </button>
+
         <button
           className="btn tiny"
           type="button"
           onClick={() => onVote(post.id, -1)}
           disabled={sending}
+          title={dislikeActive ? "Click again to remove dislike" : "Dislike"}
+          aria-pressed={dislikeActive}
+          style={pillStyle(dislikeActive)}
         >
           👎 <span className="count">{post.dislikes || 0}</span>
         </button>
+
         <button
           className="btn tiny"
           type="button"
           onClick={() => setShowReply((v) => !v)}
           disabled={sending}
+          title={showReply ? "Hide replies" : "Show replies"}
+          style={pillStyle(showReply)}
         >
-          💬 Reply <span className="count">{replies.length}</span>
+          💬 Reply <span className="count">{sortedReplies.length}</span>
         </button>
 
         {isCommish && (
@@ -100,7 +124,7 @@ export default function PostCard({
       {showReply && (
         <div className="replyBox">
           <div className="replyList">
-            {replies.map((r) => (
+            {sortedReplies.map((r) => (
               <div key={r.id} className="reply">
                 <div className="replyTop">
                   <div className="replyName">{r.display_name || "Anonymous"}</div>
@@ -109,7 +133,7 @@ export default function PostCard({
                 <div className="replyBody">{r.content}</div>
               </div>
             ))}
-            {!replies.length && <div className="muted">No replies yet.</div>}
+            {!sortedReplies.length && <div className="muted">No replies yet.</div>}
           </div>
 
           <form className="form" onSubmit={submitReply}>
@@ -134,6 +158,10 @@ export default function PostCard({
               disabled={sending}
             />
           </form>
+
+          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            Tip: click 👍/👎 again to remove your reaction.
+          </div>
         </div>
       )}
     </div>
