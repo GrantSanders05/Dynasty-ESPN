@@ -180,8 +180,21 @@ export default function Team({ supabase, isCommish }) {
   const teamName = team?.name || "Team";
   const heroLogo = team?.logo_url || "";
 
+  // Optional team color support (if your teams table has these columns)
+  // Safe fallbacks: if the columns don't exist, nothing breaks.
+  const teamPrimary =
+    team?.primary_color || team?.primaryColor || team?.primary || team?.color_primary || null;
+  const teamSecondary =
+    team?.secondary_color || team?.secondaryColor || team?.secondary || team?.color_secondary || null;
+
   return (
-    <div className="page">
+    <div
+      className="page"
+      style={{
+        "--teamPrimary": teamPrimary || undefined,
+        "--teamSecondary": teamSecondary || undefined,
+      }}
+    >
       {/* HERO */}
       <div className="teamHero">
         <div className="teamHeroInner container">
@@ -194,7 +207,6 @@ export default function Team({ supabase, isCommish }) {
             <div className="teamHeroText">
               <div className="teamHeroTitle">{teamName}</div>
               <div className="teamHeroMeta">
-                <span className="muted">Slug: {slug}</span>
                 {canEdit ? <span className="pill">COMMISH</span> : null}
               </div>
             </div>
@@ -251,7 +263,8 @@ export default function Team({ supabase, isCommish }) {
             {canEdit && editMode ? (
               <form className="form" onSubmit={addPlayer} style={{ marginTop: 12 }}>
                 <div className="formTitle">Add Player</div>
-                <div className="row" style={{ gap: 8 }}>
+                {/* Use formRow (NOT .row) so the Save button doesn't get pushed off-screen */}
+                <div className="formRow" style={{ gap: 8 }}>
                   <input
                     ref={posRef}
                     value={pos}
@@ -270,7 +283,7 @@ export default function Team({ supabase, isCommish }) {
                     inputMode="numeric"
                     style={{ maxWidth: 140 }}
                   />
-                  <button className="btn primary" type="submit">Save</button>
+                  <button className="btn primary" type="submit" onClick={addPlayer}>Save</button>
                 </div>
               </form>
             ) : null}
@@ -311,7 +324,8 @@ export default function Team({ supabase, isCommish }) {
             {canEdit && editMode ? (
               <form className="form" onSubmit={addGame} style={{ marginTop: 12 }}>
                 <div className="formTitle">Add Game</div>
-                <div className="row" style={{ gap: 8 }}>
+                {/* Use formRow (NOT .row) so the Save button is always reachable */}
+                <div className="formRow" style={{ gap: 8 }}>
                   <input
                     value={week}
                     onChange={(e) => setWeek(e.target.value)}
@@ -329,7 +343,7 @@ export default function Team({ supabase, isCommish }) {
                     onChange={(e) => setResult(e.target.value)}
                     placeholder="Result (optional)"
                   />
-                  <button className="btn primary" type="submit">Save</button>
+                  <button className="btn primary" type="submit" onClick={addGame}>Save</button>
                 </div>
               </form>
             ) : null}
