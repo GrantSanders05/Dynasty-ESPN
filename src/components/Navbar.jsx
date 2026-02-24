@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 
+/**
+ * Navbar (dcf-style look)
+ * - No functional changes
+ * - Purely markup/classes for a cleaner ESPN-style header
+ */
 export default function Navbar({
   appTitle,
   teams = [],
@@ -36,65 +41,72 @@ export default function Navbar({
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <Link className="brandLink" to="/">
-          <div className="brandMark" />
-          <div>
+      <div className="topbarInner container">
+        <div className="brand">
+          <Link to="/" className="brandLink">
             <div className="brandTitle">{appTitle}</div>
             <div className="brandSub">SportsCenter-style dynasty coverage</div>
-          </div>
-        </Link>
-      </div>
-
-      <nav className="nav">
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/">
-          Home
-        </NavLink>
-
-        <div className="dropdown" ref={dropdownRef}>
-          <button className="navBtn" type="button" onClick={() => setOpen((v) => !v)}>
-            Teams <span className="chev">▾</span>
-          </button>
-
-          {open && (
-            <div className="menu">
-              {teamLinks.length ? (
-                teamLinks.map((t) => (
-                  <Link key={t.slug} className="menuItem" to={`/team/${t.slug}`} onClick={() => setOpen(false)}>
-                    {t.name}
-                  </Link>
-                ))
-              ) : (
-                <div className="menuItem muted">No teams yet</div>
-              )}
-            </div>
-          )}
+          </Link>
         </div>
 
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/podcast">
-          Podcast
-        </NavLink>
+        <nav className="nav">
+          <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/">
+            Home
+          </NavLink>
 
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/social">
-          Social
-        </NavLink>
-      </nav>
-
-      <div className="authBox">
-        {authLoading ? <span className="pill warn">Loading…</span> : null}
-
-        {userEmail ? (
-          <div className="authSignedIn">
-            <span className="pill">
-              {userEmail} {isCommish ? <strong>• Commissioner</strong> : null}
-            </span>
-            <button className="btn danger small" type="button" onClick={onSignOut}>
-              Sign out
+          <div className="navDropdown" ref={dropdownRef}>
+            <button className="navBtn" type="button" onClick={() => setOpen((v) => !v)}>
+              Teams ▾
             </button>
+            {open && (
+              <div className="dropdown">
+                {teamLinks.length ? (
+                  teamLinks.map((t) => (
+                    <Link
+                      key={t.slug}
+                      to={`/team/${t.slug}`}
+                      className="dropdownItem"
+                      onClick={() => setOpen(false)}
+                    >
+                      {t.name}
+                    </Link>
+                  ))
+                ) : (
+                  <div className="dropdownEmpty">No teams yet</div>
+                )}
+              </div>
+            )}
           </div>
-        ) : (
-          authSlot
-        )}
+
+          <NavLink
+            className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+            to="/podcast"
+          >
+            Podcast
+          </NavLink>
+
+          <NavLink
+            className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+            to="/social"
+          >
+            Social
+          </NavLink>
+        </nav>
+
+        <div className="auth">
+          {authLoading ? <span className="muted">Loading…</span> : null}
+          {userEmail ? (
+            <div className="authUser">
+              <span className="authEmail">{userEmail}</span>
+              {isCommish ? <span className="pill">Commissioner</span> : null}
+              <button className="btn" type="button" onClick={onSignOut}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            authSlot
+          )}
+        </div>
       </div>
     </header>
   );

@@ -2,17 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import ArticleCard from "../components/ArticleCard.jsx";
 
 /**
- * Home page
- * - Headline ticker at top (SportsCenter vibe)
- * - Priority controls sort but is NEVER shown to users
- * - Commissioner can:
- *   - post headlines
- *   - post articles
- *   - toggle featured/published
- *   - delete
- *   - (optional) tag articles to teams via article_teams join table
+ * Home page (dcf-style look)
+ * - Headline ticker is a top banner (not inside a card)
+ * - Priority controls sorting but is NEVER shown
+ * - No functionality changes
  */
-
 export default function Home({ supabase, isCommish }) {
   const [loading, setLoading] = useState(true);
   const [headlines, setHeadlines] = useState([]);
@@ -58,7 +52,6 @@ export default function Home({ supabase, isCommish }) {
       .select("*")
       .order("priority", { ascending: true })
       .order("created_at", { ascending: false });
-
     if (h.error) flashError(`Headlines: ${h.error.message}`);
     setHeadlines(h.data || []);
 
@@ -66,9 +59,8 @@ export default function Home({ supabase, isCommish }) {
       .from("articles")
       .select("*")
       .order("created_at", { ascending: false });
-
     if (a.error) flashError(`Articles: ${a.error.message}`);
-    // Non-commish should only see published
+
     const all = a.data || [];
     setArticles(isCommish ? all : all.filter((x) => x.is_published !== false));
 
@@ -76,7 +68,6 @@ export default function Home({ supabase, isCommish }) {
       .from("teams")
       .select("id,name,slug")
       .order("name", { ascending: true });
-
     if (t.error) flashError(`Teams: ${t.error.message}`);
     setTeams(t.data || []);
 
@@ -100,7 +91,6 @@ export default function Home({ supabase, isCommish }) {
         priority: Number(hlPriority) || 1,
       });
       if (error) throw error;
-
       flashNotice("Headline posted.");
       setHlText("");
       setHlLink("");
@@ -146,21 +136,16 @@ export default function Home({ supabase, isCommish }) {
         })
         .select("*")
         .single();
-
       if (error) throw error;
 
-      // Optional tagging (if you have article_teams join table)
+      // Optional tagging
       if (selectedTeamIds.length > 0) {
         const rows = selectedTeamIds.map((team_id) => ({
           article_id: inserted.id,
           team_id,
         }));
-
         const { error: tagErr } = await supabase.from("article_teams").insert(rows);
-        if (tagErr) {
-          // Don’t fail the whole post if tagging table isn’t there
-          console.warn("article_teams insert:", tagErr.message);
-        }
+        if (tagErr) console.warn("article_teams insert:", tagErr.message);
       }
 
       flashNotice("Article posted.");
@@ -180,7 +165,10 @@ export default function Home({ supabase, isCommish }) {
   async function toggleFeatured(id, is_featured) {
     if (!isCommish) return;
     try {
-      const { error } = await supabase.from("articles").update({ is_featured: !is_featured }).eq("id", id);
+      const { error } = await supabase
+        .from("articles")
+        .update({ is_featured: !is_featured })
+        .eq("id", id);
       if (error) throw error;
       await loadAll();
     } catch (e) {
@@ -191,7 +179,10 @@ export default function Home({ supabase, isCommish }) {
   async function togglePublished(id, is_published) {
     if (!isCommish) return;
     try {
-      const { error } = await supabase.from("articles").update({ is_published: !is_published }).eq("id", id);
+      const { error } = await supabase
+        .from("articles")
+        .update({ is_published: !is_published })
+        .eq("id", id);
       if (error) throw error;
       await loadAll();
     } catch (e) {
@@ -215,6 +206,7 @@ export default function Home({ supabase, isCommish }) {
 
   const tickerItems = useMemo(() => {
     const items = (headlines || []).map((h) => ({ id: h.id, text: h.text, link: h.link || null }));
+    // duplicate to keep it seamless
     if (items.length <= 4) return items.concat(items);
     return items.concat(items);
   }, [headlines]);
@@ -226,127 +218,113 @@ export default function Home({ supabase, isCommish }) {
   }, [headlines]);
 
   return (
-    <div>
-      <div className="ticker">
+    <div className="page">
+      {/* Top ticker bar */}
+      <div className="tickerBar" aria-label="Top headlines">
         <div className="tickerLabel">TOP HEADLINES</div>
-        <div className="tickerText" style={{ overflow: "hidden" }}>
+        <div className="tickerViewport">
           <div
-            style={{
-              display: "inline-flex",
-              gap: 18,
-              whiteSpace: "nowrap",
-              animation: `tickerScroll ${tickerDurationSec}s linear infinite`,
-            }}
+            className="tickerTrack"
+            style={{ animationDuration: `${tickerDurationSec}s` }}
           >
             {tickerItems.map((h, i) => (
-              <span key={`${h.id}-${i}`}>
+              <span className="tickerItem" key={`${h.id}-${i}`}>
                 {h.link ? (
-                  <a className="link" href={h.link} target="_blank" rel="noreferrer">
+                  <a href={h.link} target="_blank" rel="noreferrer">
                     {h.text}
                   </a>
                 ) : (
                   h.text
                 )}
-                <span className="muted" style={{ margin: "0 10px" }}>
-                  •
-                </span>
+                <span className="tickerSep">•</span>
               </span>
             ))}
           </div>
         </div>
       </div>
 
-      <style>{`
-        @keyframes tickerScroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-      `}</style>
+      <div className="container" style={{ marginTop: 14 }}>
+        <h1 style={{ marginBottom: 6 }}>Home</h1>
+        <div className="muted">Headlines, stories, and weekly coverage.</div>
 
-      <div className="pageHeader">
-        <div>
-          <h1 style={{ margin: 0 }}>Home</h1>
-          <div className="muted">Headlines, stories, and weekly coverage.</div>
-        </div>
-      </div>
-
-      {(notice || error) ? (
-        <div style={{ marginBottom: 12 }}>
-          {notice ? <div className="banner notice">{notice}</div> : null}
-          {error ? <div className="banner error">{error}</div> : null}
-        </div>
-      ) : null}
-
-      {isCommish ? (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <div className="cardHeader">
-            <h2>Post a Headline</h2>
+        {(notice || error) ? (
+          <div className="stack" style={{ marginTop: 10 }}>
+            {notice ? <div className="notice">{notice}</div> : null}
+            {error ? <div className="error">{error}</div> : null}
           </div>
-          <div className="form">
-            <input className="input" value={hlText} onChange={(e) => setHlText(e.target.value)} placeholder="Big Week 5 matchup..." />
-            <div className="row">
-              <input className="input" value={hlLink} onChange={(e) => setHlLink(e.target.value)} placeholder="Link (optional)" />
-              <input className="input" value={hlPriority} onChange={(e) => setHlPriority(e.target.value)} placeholder="Order (1 = first)" type="number" min="1" />
-            </div>
-            <button className="btn primary" type="button" onClick={addHeadline} disabled={savingHeadline}>
-              {savingHeadline ? "Posting..." : "Post Headline"}
-            </button>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Priority controls ticker order (it won’t be displayed).
-            </div>
-          </div>
-
-          {headlines.length ? (
-            <div style={{ marginTop: 12 }}>
-              <div className="muted" style={{ fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", fontSize: 12, marginBottom: 8 }}>
-                Manage Headlines
-              </div>
-              <div className="list">
-                {headlines.map((h) => (
-                  <div className="listItem" key={h.id}>
-                    <div className="headlineRow">
-                      <div style={{ fontWeight: 900 }}>{h.text}</div>
-                      <button className="btn danger small" type="button" onClick={() => deleteHeadline(h.id)}>
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="card">
-        <div className="cardHeader">
-          <h2>Articles</h2>
-          <div className="muted">{loading ? "Loading..." : `${articles.length} total`}</div>
-        </div>
+        ) : null}
 
         {isCommish ? (
-          <div className="card" style={{ marginBottom: 12, marginTop: 10 }}>
-            <div className="cardHeader">
-              <h2>Post an Article</h2>
-            </div>
-
-            <div className="form">
-              <input className="input" value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="Title" />
-              <div className="row">
-                <input className="input" value={aWeek} onChange={(e) => setAWeek(e.target.value)} placeholder="Week (optional)" />
-                <input className="input" value={aAuthor} onChange={(e) => setAAuthor(e.target.value)} placeholder="Author (optional)" />
+          <div className="grid2" style={{ marginTop: 14 }}>
+            <div className="card">
+              <h2 style={{ marginTop: 0 }}>Post a Headline</h2>
+              <div className="form">
+                <input
+                  value={hlText}
+                  onChange={(e) => setHlText(e.target.value)}
+                  placeholder="Big Week 5 matchup..."
+                />
+                <div className="row" style={{ gap: 8 }}>
+                  <input
+                    value={hlLink}
+                    onChange={(e) => setHlLink(e.target.value)}
+                    placeholder="Link (optional)"
+                  />
+                  <input
+                    value={hlPriority}
+                    onChange={(e) => setHlPriority(e.target.value)}
+                    placeholder="Order (1 = first)"
+                    type="number"
+                    min="1"
+                    style={{ maxWidth: 180 }}
+                  />
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={addHeadline}
+                    disabled={savingHeadline}
+                  >
+                    {savingHeadline ? "Posting..." : "Post"}
+                  </button>
+                </div>
+                <div className="muted">Priority controls ticker order (it won’t be displayed).</div>
               </div>
 
-              <div className="kv">
-                <div className="kvKey">Tag Teams (optional)</div>
+              {headlines.length ? (
+                <div style={{ marginTop: 10 }}>
+                  <div className="muted" style={{ marginBottom: 6 }}>Manage Headlines</div>
+                  <div className="list">
+                    {headlines.map((h) => (
+                      <div className="row" key={h.id}>
+                        <div className="rowMain">{h.text}</div>
+                        <button className="btn danger" type="button" onClick={() => deleteHeadline(h.id)}>
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="card">
+              <h2 style={{ marginTop: 0 }}>Post an Article</h2>
+              <div className="form">
+                <input value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="Title" />
+                <div className="row" style={{ gap: 8 }}>
+                  <input value={aWeek} onChange={(e) => setAWeek(e.target.value)} placeholder="Week (optional)" />
+                  <input value={aAuthor} onChange={(e) => setAAuthor(e.target.value)} placeholder="Author (optional)" />
+                </div>
+
+                <div className="muted" style={{ marginTop: 10 }}>Tag Teams (optional)</div>
                 {teams.length === 0 ? (
                   <div className="muted">No teams loaded.</div>
                 ) : (
-                  <div className="grid" style={{ marginTop: 8 }}>
+                  <div className="tags" style={{ marginTop: 6 }}>
                     {teams.map((t) => {
                       const checked = selectedTeamIds.includes(t.id);
                       return (
-                        <label key={t.id} className="check">
+                        <label key={t.id} className="tagCheck">
                           <input
                             type="checkbox"
                             checked={checked}
@@ -364,35 +342,51 @@ export default function Home({ supabase, isCommish }) {
                     })}
                   </div>
                 )}
+
+                <textarea
+                  value={aBody}
+                  onChange={(e) => setABody(e.target.value)}
+                  placeholder="Article body..."
+                />
+
+                <button
+                  className="btn primary"
+                  type="button"
+                  onClick={addArticle}
+                  disabled={savingArticle}
+                >
+                  {savingArticle ? "Posting..." : "Post Article"}
+                </button>
               </div>
-
-              <textarea className="textarea" rows={6} value={aBody} onChange={(e) => setABody(e.target.value)} placeholder="Article body..." />
-
-              <button className="btn primary" type="button" onClick={addArticle} disabled={savingArticle}>
-                {savingArticle ? "Posting..." : "Post Article"}
-              </button>
             </div>
           </div>
         ) : null}
 
-        {loading ? (
-          <div className="muted">Loading articles…</div>
-        ) : articles.length === 0 ? (
-          <div className="muted">No articles yet.</div>
-        ) : (
-          <div className="list" style={{ marginTop: 10 }}>
-            {articles.map((a) => (
-              <ArticleCard
-                key={a.id}
-                a={a}
-                isCommish={isCommish}
-                onFeature={(id, is_featured) => toggleFeatured(id, is_featured)}
-                onPublishToggle={(id, is_published) => togglePublished(id, is_published)}
-                onDelete={(id) => deleteArticle(id)}
-              />
-            ))}
+        <div style={{ marginTop: 16 }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h2 style={{ margin: 0 }}>Articles</h2>
+            <div className="muted">{loading ? "Loading..." : `${articles.length} total`}</div>
           </div>
-        )}
+
+          {loading ? (
+            <div className="muted">Loading articles…</div>
+          ) : articles.length === 0 ? (
+            <div className="muted">No articles yet.</div>
+          ) : (
+            <div className="list" style={{ marginTop: 10 }}>
+              {articles.map((a) => (
+                <ArticleCard
+                  key={a.id}
+                  a={a}
+                  isCommish={isCommish}
+                  onFeature={(id, is_featured) => toggleFeatured(id, is_featured)}
+                  onPublishToggle={(id, is_published) => togglePublished(id, is_published)}
+                  onDelete={(id) => deleteArticle(id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
