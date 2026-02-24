@@ -18,19 +18,16 @@ export default function Navbar({
     [teams]
   );
 
-  // Close the Teams menu when you click anywhere outside of it
   useEffect(() => {
     function onDocPointerDown(e) {
       if (!open) return;
       const el = dropdownRef.current;
       if (!el) return;
-      if (el.contains(e.target)) return; // click happened inside dropdown
+      if (el.contains(e.target)) return;
       setOpen(false);
     }
-
     document.addEventListener("mousedown", onDocPointerDown);
     document.addEventListener("touchstart", onDocPointerDown, { passive: true });
-
     return () => {
       document.removeEventListener("mousedown", onDocPointerDown);
       document.removeEventListener("touchstart", onDocPointerDown);
@@ -40,9 +37,9 @@ export default function Navbar({
   return (
     <header className="topbar">
       <div className="brand">
-        <Link to="/" className="brandLink">
-          <div className="brandMark" aria-hidden />
-          <div className="brandText">
+        <Link className="brandLink" to="/">
+          <div className="brandMark" />
+          <div>
             <div className="brandTitle">{appTitle}</div>
             <div className="brandSub">SportsCenter-style dynasty coverage</div>
           </div>
@@ -55,26 +52,15 @@ export default function Navbar({
         </NavLink>
 
         <div className="dropdown" ref={dropdownRef}>
-          <button
-            className="navBtn"
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={open ? "true" : "false"}
-            onClick={() => setOpen((v) => !v)}
-          >
+          <button className="navBtn" type="button" onClick={() => setOpen((v) => !v)}>
             Teams <span className="chev">▾</span>
           </button>
 
           {open && (
-            <div className="menu" role="menu">
+            <div className="menu">
               {teamLinks.length ? (
                 teamLinks.map((t) => (
-                  <Link
-                    key={t.slug}
-                    to={`/teams/${t.slug}`}
-                    className="menuItem"
-                    onClick={() => setOpen(false)}
-                  >
+                  <Link key={t.slug} className="menuItem" to={`/team/${t.slug}`} onClick={() => setOpen(false)}>
                     {t.name}
                   </Link>
                 ))
@@ -88,21 +74,21 @@ export default function Navbar({
         <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/podcast">
           Podcast
         </NavLink>
+
         <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/social">
           Social
         </NavLink>
       </nav>
 
       <div className="authBox">
-        {/* Show a small loading pill but NEVER hide the auth form */}
-        {authLoading ? <div className="pill">Loading…</div> : null}
+        {authLoading ? <span className="pill warn">Loading…</span> : null}
 
         {userEmail ? (
           <div className="authSignedIn">
-            <div className="pill">
+            <span className="pill">
               {userEmail} {isCommish ? <strong>• Commissioner</strong> : null}
-            </div>
-            <button className="btn" onClick={onSignOut} type="button">
+            </span>
+            <button className="btn danger small" type="button" onClick={onSignOut}>
               Sign out
             </button>
           </div>

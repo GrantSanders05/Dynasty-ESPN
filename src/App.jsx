@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { supabase } from "./supabaseClient.js";
+
 import Navbar from "./components/Navbar.jsx";
 import { Banner } from "./components/Banners.jsx";
 
@@ -10,10 +11,9 @@ import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
-const COMMISH_EMAIL = "grantssanders05@gmail.com".toLowerCase();
+const COMMISH_EMAIL = "grantssanders05@gmail.com";
 
-// Never let auth checks hang the UI
-function withTimeout(promise, ms = 1500) {
+function withTimeout(promise, ms = 2000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error("Auth timeout")), ms)),
@@ -22,8 +22,6 @@ function withTimeout(promise, ms = 1500) {
 
 export default function App() {
   const [user, setUser] = useState(null);
-
-  // Start as NOT loading so the login form always shows.
   const [authLoading, setAuthLoading] = useState(false);
 
   const [teams, setTeams] = useState([]);
@@ -37,7 +35,7 @@ export default function App() {
 
   const isCommish = useMemo(() => {
     const e = (user?.email || "").toLowerCase();
-    return !!e && e === COMMISH_EMAIL;
+    return e && e === COMMISH_EMAIL.toLowerCase();
   }, [user]);
 
   function flashNotice(msg) {
@@ -55,29 +53,20 @@ export default function App() {
   }
 
   async function loadTeams() {
-    const res = await supabase
-      .from("teams")
-      .select("*")
-      .order("name", { ascending: true });
-
+    const res = await supabase.from("teams").select("*").order("name", { ascending: true });
     if (!res.error) setTeams(res.data || []);
   }
 
   async function refreshSession() {
-    // Show a tiny loading pill, but do NOT block the login UI.
     setAuthLoading(true);
-
     try {
-      const { data } = await withTimeout(supabase.auth.getSession(), 1500);
+      const { data } = await withTimeout(supabase.auth.getSession(), 2000);
       setUser(data?.session?.user ?? null);
     } catch (e) {
       console.warn("refreshSession:", e?.message || e);
       setUser(null);
       flashError(
-        "Auth check timed out. If this keeps happening: " +
-          "1) Hard refresh (Ctrl+Shift+R), " +
-          "2) Try Incognito, " +
-          "3) Confirm Supabase Auth → URL Configuration has your Vercel URL."
+        "Auth check timed out. If this keeps happening: 1) Hard refresh (Ctrl+Shift+R), 2) Try Incognito, 3) Confirm Supabase Auth → URL Configuration has your Vercel URL."
       );
     } finally {
       setAuthLoading(false);
@@ -87,11 +76,9 @@ export default function App() {
   useEffect(() => {
     refreshSession();
     loadTeams();
-
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       refreshSession();
     });
-
     return () => sub?.subscription?.unsubscribe?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -111,7 +98,6 @@ export default function App() {
         if (error) throw error;
         flashNotice("Signed in.");
       }
-
       setEmail("");
       setPassword("");
       await refreshSession();
@@ -154,43 +140,40 @@ export default function App() {
         type="password"
         autoComplete={authMode === "signup" ? "new-password" : "current-password"}
       />
-      <button className="btn primary" type="submit">
+      <button className="btn primary" disabled={authLoading} type="submit">
         {authMode === "signup" ? "Sign up" : "Sign in"}
       </button>
-      <button
-        className="btn ghost"
-        type="button"
-        onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}
-      >
+      <button className="btn" type="button" onClick={() => setAuthMode((m) => (m === "signup" ? "signin" : "signup"))}>
         {authMode === "signup" ? "Have an account?" : "New here?"}
       </button>
     </form>
   ) : null;
 
   return (
-    <BrowserRouter>
-      <div className="app">
-        <Navbar
-          appTitle={APP_TITLE}
-          teams={teams}
-          userEmail={user?.email}
-          isCommish={isCommish}
-          onSignOut={signOut}
-          authSlot={authSlot}
-          authLoading={authLoading}
-        />
+    <div className="app">
+      <Navbar
+        appTitle={APP_TITLE}
+        teams={teams}
+        userEmail={user?.email || ""}
+        isCommish={isCommish}
+        onSignOut={signOut}
+        authSlot={authSlot}
+        authLoading={authLoading}
+      />
 
+      <main className="page">
         <Banner notice={notice} error={error} />
 
         <Routes>
-          <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} teams={teams} />} />
-          <Route path="/social" element={<Social supabase={supabase} isCommish={isCommish} />} />
+          <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} />} />
+          <Route path="/social" element={<Social supabase={supabase} user={user} isCommish={isCommish} />} />
           <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
-          <Route path="/teams/:slug" element={<Team supabase={supabase} isCommish={isCommish} user={user} commishEmail={COMMISH_EMAIL} />} />
+          <Route
+            path="/team/:slug"
+            element={<Team supabase={supabase} isCommish={isCommish} user={user} commishEmail={COMMISH_EMAIL} />}
+          />
         </Routes>
-
-        {/* Footer removed per request */}
-      </div>
-    </BrowserRouter>
+      </main>
+    </div>
   );
 }
