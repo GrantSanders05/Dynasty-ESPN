@@ -26,7 +26,9 @@ export default function PostCard({
   onReply,
   replies = [],
 }) {
-  const [showReply, setShowReply] = useState(false);
+  const [showThread, setShowThread] = useState(false);   // shows replies list
+  const [showComposer, setShowComposer] = useState(false); // shows reply form
+
   const [replyName, setReplyName] = useState("");
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
@@ -48,8 +50,10 @@ export default function PostCard({
     try {
       await onReply(post.id, replyName, replyText);
       setReplyText("");
-      // ESPN-ish: keep thread open so it feels like a live comment section
-      if (!showReply) setShowReply(true);
+      // Keep thread visible after replying so it feels like a live comment section
+      setShowThread(true);
+      // Close composer after successful submit (cleaner)
+      setShowComposer(false);
     } finally {
       setSending(false);
     }
@@ -98,15 +102,34 @@ export default function PostCard({
           👎 <span className="count">{post.dislikes || 0}</span>
         </button>
 
+        {/* Cleaner navigation:
+            - One button toggles viewing the thread
+            - Separate button toggles writing a reply
+        */}
         <button
           className="btn tiny"
           type="button"
-          onClick={() => setShowReply((v) => !v)}
+          onClick={() => setShowThread((v) => !v)}
           disabled={sending}
-          title={showReply ? "Hide replies" : "Show replies"}
-          style={pillStyle(showReply)}
+          title={showThread ? "Hide replies" : "View replies"}
+          style={pillStyle(showThread)}
         >
-          💬 Reply <span className="count">{sortedReplies.length}</span>
+          💬 Replies <span className="count">{sortedReplies.length}</span>
+        </button>
+
+        <button
+          className="btn tiny"
+          type="button"
+          onClick={() => {
+            // Opening composer should also show the thread so the user sees context
+            setShowThread(true);
+            setShowComposer((v) => !v);
+          }}
+          disabled={sending}
+          title={showComposer ? "Close reply box" : "Write a reply"}
+          style={pillStyle(showComposer)}
+        >
+          ✍️ Reply
         </button>
 
         {isCommish && (
@@ -121,47 +144,56 @@ export default function PostCard({
         )}
       </div>
 
-      {showReply && (
+      {(showThread || showComposer) && (
         <div className="replyBox">
-          <div className="replyList">
-            {sortedReplies.map((r) => (
-              <div key={r.id} className="reply">
-                <div className="replyTop">
-                  <div className="replyName">{r.display_name || "Anonymous"}</div>
-                  <div className="muted">{timeAgo(r.created_at)}</div>
+          {/* Thread */}
+          {showThread && (
+            <div className="replyList">
+              {sortedReplies.map((r) => (
+                <div key={r.id} className="reply">
+                  <div className="replyTop">
+                    <div className="replyName">{r.display_name || "Anonymous"}</div>
+                    <div className="muted">{timeAgo(r.created_at)}</div>
+                  </div>
+                  <div className="replyBody">{r.content}</div>
                 </div>
-                <div className="replyBody">{r.content}</div>
-              </div>
-            ))}
-            {!sortedReplies.length && <div className="muted">No replies yet.</div>}
-          </div>
+              ))}
+              {!sortedReplies.length && <div className="muted">No replies yet.</div>}
+            </div>
+          )}
 
-          <form className="form" onSubmit={submitReply}>
-            <div className="row">
-              <input
-                className="input"
-                placeholder="Display name (optional)"
-                value={replyName}
-                onChange={(e) => setReplyName(e.target.value)}
+          {/* Composer */}
+          {showComposer && (
+            <form className="form" onSubmit={submitReply}>
+              <div className="row">
+                <input
+                  className="input"
+                  placeholder="Display name (optional)"
+                  value={replyName}
+                  onChange={(e) => setReplyName(e.target.value)}
+                  disabled={sending}
+                />
+                <button className="btn primary" type="submit" disabled={!canSubmit}>
+                  {sending ? "Replying..." : "Post Reply"}
+                </button>
+              </div>
+              <textarea
+                className="textarea"
+                rows={3}
+                placeholder="Write a reply…"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
                 disabled={sending}
               />
-              <button className="btn primary" type="submit" disabled={!canSubmit}>
-                {sending ? "Replying..." : "Reply"}
-              </button>
-            </div>
-            <textarea
-              className="textarea"
-              rows={3}
-              placeholder="Write a reply…"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              disabled={sending}
-            />
-          </form>
+            </form>
+          )}
 
-          <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-            Tip: click 👍/👎 again to remove your reaction.
-          </div>
+          {/* Small helper when only thread is open */}
+          {showThread && !showComposer && (
+            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              Tip: hit <strong>✍️ Reply</strong> to add to the thread.
+            </div>
+          )}
         </div>
       )}
     </div>
