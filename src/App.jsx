@@ -186,7 +186,7 @@ export default function App() {
           <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} teams={teams} />} />
           <Route path="/social" element={<Social supabase={supabase} isCommish={isCommish} />} />
           <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
-          <Route path="/teams/:slug" element={<Team supabase={supabase} isCommish={isCommish} />} />
+          <Route path="/teams/:slug" element={<Team supabase={supabase} isCommish={isCommish} user={user} commishEmail={COMMISH_EMAIL} />} />
         </Routes>
 
         {/* Footer removed per request */}
