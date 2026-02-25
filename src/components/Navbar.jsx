@@ -53,21 +53,21 @@ export default function Navbar({
 
   return (
     <div className="nav">
-      <div className="navInner">
+      <div >
         <Link to="/" className="brand" onClick={closeAll}>
           <div className="brandTitle">{appTitle}</div>
           <div className="brandSub">SportsCenter-style dynasty coverage</div>
         </Link>
 
         <button
-          className="mobileToggle"
+          className="hamburger"
           onClick={() => setMobileOpen((v) => !v)}
           aria-label="Toggle menu"
         >
           {mobileOpen ? "Close" : "Menu"}
         </button>
 
-        <div className={`navLinks ${mobileOpen ? "open" : ""}`}>
+        <div className="navRight">
           <NavLink
             className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
             to="/"
@@ -108,8 +108,8 @@ export default function Navbar({
                         to={`/team/${t.slug}`}
                         onClick={closeAll}
                       >
-                        <span className="teamName">{t.name}</span>
-                        <span className="teamSlug">{t.slug}</span>
+                        {t.name}
+                        <span className="menuMeta">{t.slug}</span>
                       </Link>
                     ))
                   ) : (
