@@ -99,7 +99,7 @@ export default function Navbar({
               <div className="menuGrid">
                 {filtered.length ? (
                   filtered.map((t) => (
-                    <Link key={t.slug} className="menuItem" to={`/teams/${t.slug}`} onClick={closeAll}>
+                    <Link key={t.slug} className="menuItem" to={`/team/${t.slug}`} onClick={closeAll}>
                       <span>{t.name}</span>
                       <span className="menuMeta">{t.slug}</span>
                     </Link>

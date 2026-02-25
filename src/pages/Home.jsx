@@ -201,7 +201,14 @@ export default function Home({ supabase, isCommish }) {
     return base + extra;
   }, [headlines]);
 
-  return (
+  
+  const heroTitle = useMemo(() => {
+    const top = (headlines || [])[0]?.text;
+    if (top && String(top).trim()) return String(top).trim();
+    return "Dynasty Network";
+  }, [headlines]);
+
+return (
     <div className="page">
       {notice ? <div className="card" style={{ borderColor: "rgba(43,212,106,.30)", background: "rgba(43,212,106,.08)" }}>{notice}</div> : null}
       {error ? <div className="card" style={{ borderColor: "rgba(255,90,95,.35)", background: "rgba(255,90,95,.08)" }}>{error}</div> : null}
@@ -209,7 +216,7 @@ export default function Home({ supabase, isCommish }) {
       <div className="headlineWrap">
         <div className="headlineBanner">
           <div>
-            <h1 className="headlineTitle">Headlines</h1>
+            <h1 className="headlineTitle">{heroTitle}</h1>
             <div className="headlineSub">Live updates across the league</div>
           </div>
           <div className="headlinePill">Dynasty Network</div>
