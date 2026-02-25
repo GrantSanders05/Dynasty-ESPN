@@ -11,7 +11,41 @@ import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
-const COMMISH_EMAIL = "grantssanders05@gmail.com";
+const [isCommish, setIsCommish] = useState(false);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function check() {
+    const e = (user?.email || "").toLowerCase().trim();
+    if (!e) {
+      setIsCommish(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("commissioners")
+      .select("email")
+      .eq("email", e)
+      .maybeSingle();
+
+    if (cancelled) return;
+
+    if (error) {
+      console.warn("Commissioner check failed:", error.message);
+      // safest fallback: treat as NOT commish if check fails
+      setIsCommish(false);
+      return;
+    }
+
+    setIsCommish(!!data?.email);
+  }
+
+  check();
+  return () => {
+    cancelled = true;
+  };
+}, [user?.email]);
 
 function withTimeout(promise, ms = 2000) {
   return Promise.race([
