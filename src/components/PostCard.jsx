@@ -57,122 +57,103 @@ export default function PostCard({
   const likeActive = myVote === 1;
   const dislikeActive = myVote === -1;
 
-  const pillStyle = (active) => ({
-    border: active ? "1px solid rgba(255,255,255,0.22)" : undefined,
-    boxShadow: active ? "0 0 0 2px rgba(255,255,255,0.06) inset" : undefined,
-    transform: active ? "translateY(-1px)" : undefined,
-  });
-
   return (
-    <div className="post">
-      <div className="postTop">
-        <div className="postName">{post.display_name || "Anonymous"}</div>
-        <div className="muted">{timeAgo(post.created_at)}</div>
+    <div className="postCard">
+      <div className="postHeader">
+        <div className="postAuthor">{post.display_name || "Anonymous"}</div>
+        <div className="postTime">{timeAgo(post.created_at)}</div>
       </div>
 
-      <div className="postBody" style={{ whiteSpace: "pre-wrap" }}>
-        {post.content}
-      </div>
+      <div className="postBody">{post.content}</div>
 
-      <div className="postBar">
+      <div className="postActions">
         <button
-          className="btn tiny"
-          type="button"
+          className={`reactionPill ${likeActive ? "active" : ""}`}
           onClick={() => onVote(post.id, 1)}
           disabled={sending}
-          title={likeActive ? "Click again to remove like" : "Like"}
           aria-pressed={likeActive}
-          style={pillStyle(likeActive)}
+          title={likeActive ? "Click again to remove like" : "Like"}
+          type="button"
         >
-          👍 <span className="count">{post.likes || 0}</span>
+          👍 {post.likes || 0}
         </button>
 
         <button
-          className="btn tiny"
-          type="button"
+          className={`reactionPill negative ${dislikeActive ? "active" : ""}`}
           onClick={() => onVote(post.id, -1)}
           disabled={sending}
-          title={dislikeActive ? "Click again to remove dislike" : "Dislike"}
           aria-pressed={dislikeActive}
-          style={pillStyle(dislikeActive)}
+          title={dislikeActive ? "Click again to remove dislike" : "Dislike"}
+          type="button"
         >
-          👎 <span className="count">{post.dislikes || 0}</span>
+          👎 {post.dislikes || 0}
         </button>
 
         <button
-          className="btn tiny"
-          type="button"
+          className={`reactionPill ${showThread ? "active" : ""}`}
           onClick={() => setShowThread((v) => !v)}
           disabled={sending}
+          type="button"
           title={showThread ? "Hide replies" : "View replies"}
-          style={pillStyle(showThread)}
         >
-          💬 Replies <span className="count">{sortedReplies.length}</span>
+          💬 Replies {sortedReplies.length}
         </button>
 
         <button
-          className="btn tiny"
-          type="button"
+          className={`reactionPill ${showComposer ? "active" : ""}`}
           onClick={() => {
             setShowThread(true);
             setShowComposer((v) => !v);
           }}
           disabled={sending}
+          type="button"
           title={showComposer ? "Close reply box" : "Write a reply"}
-          style={pillStyle(showComposer)}
         >
           ✍️ Reply
         </button>
 
         {isCommish ? (
-          <button className="btn danger tiny" type="button" onClick={() => onDelete(post.id)} disabled={sending}>
-            Delete
+          <button className="reactionPill negative" onClick={() => onDelete(post.id)} disabled={sending} type="button">
+            🗑️ Delete
           </button>
         ) : null}
       </div>
 
       {(showThread || showComposer) ? (
-        <div className="replyBox">
+        <div className="thread">
           {showThread ? (
-            <div className="replyList">
-              {sortedReplies.map((r) => (
-                <div className="reply" key={r.id}>
-                  <div className="replyTop">
-                    <div className="replyName">{r.display_name || "Anonymous"}</div>
-                    <div className="muted">{timeAgo(r.created_at)}</div>
+            sortedReplies.length ? (
+              <div className="stack" style={{ gap: 10 }}>
+                {sortedReplies.map((r) => (
+                  <div className="threadRow" key={r.id}>
+                    <div className="threadLine" aria-hidden="true" />
+                    <div className="replyCard">
+                      <div className="replyHeader">
+                        <div className="replyAuthor">{r.display_name || "Anonymous"}</div>
+                        <div className="replyTime">{timeAgo(r.created_at)}</div>
+                      </div>
+                      <div className="replyBody">{r.content}</div>
+                    </div>
                   </div>
-                  <div className="replyBody" style={{ whiteSpace: "pre-wrap" }}>
-                    {r.content}
-                  </div>
-                </div>
-              ))}
-              {!sortedReplies.length ? <div className="muted">No replies yet.</div> : null}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="muted">No replies yet.</div>
+            )
           ) : null}
 
           {showComposer ? (
-            <form className="form" onSubmit={submitReply}>
-              <div className="row">
-                <input
-                  className="input"
-                  value={replyName}
-                  onChange={(e) => setReplyName(e.target.value)}
-                  placeholder="Name (optional)"
-                  disabled={sending}
-                />
-                <button className="btn primary" type="submit" disabled={!canSubmit}>
-                  {sending ? "Replying..." : "Post Reply"}
-                </button>
-              </div>
-              <textarea
-                className="textarea"
-                rows={3}
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Write a reply..."
-                disabled={sending}
-              />
-            </form>
+            <div className="replyComposer">
+              <form onSubmit={submitReply} className="form" style={{ marginBottom: 0 }}>
+                <div className="row">
+                  <input className="input" value={replyName} onChange={(e) => setReplyName(e.target.value)} placeholder="Name (optional)" disabled={sending} />
+                  <button className="btn primary" type="submit" disabled={!canSubmit}>
+                    {sending ? "Replying..." : "Post Reply"}
+                  </button>
+                </div>
+                <textarea className="textarea" rows={3} value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Write a reply..." disabled={sending} />
+              </form>
+            </div>
           ) : null}
         </div>
       ) : null}

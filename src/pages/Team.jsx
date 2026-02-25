@@ -7,6 +7,27 @@ import { Link, useParams } from "react-router-dom";
  * - Responsive layout for mobile/tablet
  * - No DB/logic changes (save/edit still works)
  */
+
+function formatResult(result) {
+  const raw = (result || "").trim();
+  if (!raw) return { wl: null, score: null, text: "" };
+
+  // Accept formats like:
+  // "W 31-24", "L 17-21", "31-24 W", "W, 31-24"
+  const m1 = raw.match(/^([WwLl])\s*[:\-]?\s*([0-9]{1,3}\s*-\s*[0-9]{1,3})$/);
+  if (m1) return { wl: m1[1].toUpperCase(), score: m1[2].replace(/\s+/g, ""), text: raw };
+
+  const m2 = raw.match(/^([0-9]{1,3}\s*-\s*[0-9]{1,3})\s*([WwLl])$/);
+  if (m2) return { wl: m2[2].toUpperCase(), score: m2[1].replace(/\s+/g, ""), text: raw };
+
+  // If user only typed the score, just show it (no WL)
+  const m3 = raw.match(/^([0-9]{1,3}\s*-\s*[0-9]{1,3})$/);
+  if (m3) return { wl: null, score: m3[1].replace(/\s+/g, ""), text: raw };
+
+  // Otherwise show whatever they typed.
+  return { wl: null, score: null, text: raw };
+}
+
 export default function Team({ supabase, isCommish }) {
   const { slug } = useParams();
   const [team, setTeam] = useState(null);
@@ -384,7 +405,7 @@ export default function Team({ supabase, isCommish }) {
                           <option value="HOME">HOME</option>
                           <option value="AWAY">AWAY</option>
                         </select>
-                        <input className="input" value={editResult} onChange={(e) => setEditResult(e.target.value)} placeholder="Result (optional)" />
+                        <input className="input" value={editResult} onChange={(e) => setEditResult(e.target.value)} placeholder="Result (optional) e.g. W 31-24" />
                         <button className="btn primary" type="submit">Save</button>
                         <button className="btn" type="button" onClick={cancelEditGame}>Cancel</button>
                       </div>
@@ -392,8 +413,23 @@ export default function Team({ supabase, isCommish }) {
                   ) : (
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 950 }}>
-                        Week {g.week}: <span style={{ fontWeight: 900 }}>{g.home_away === "AWAY" ? "@ " : ""}{g.opponent}</span>{" "}
-                        <span className="muted">{g.result ? `— ${g.result}` : ""}</span>
+                        (() => {
+                        const prefix = g.home_away === "AWAY" ? "@ " : "vs. ";
+                        const fr = formatResult(g.result);
+                        return (
+                          <div className="gameLine">
+                            <div className="gameLeft">
+                              Week {g.week}: <span style={{ fontWeight: 900 }}>{prefix}{g.opponent}</span>
+                            </div>
+                            <div className="gameMeta">
+                              {fr.wl ? (
+                                <span className={`wlPill ${fr.wl === "W" ? "w" : "l"}`}>{fr.wl}</span>
+                              ) : null}
+                              {fr.score ? <span className="scoreText">{fr.score}</span> : fr.text ? <span className="muted">{fr.text}</span> : null}
+                            </div>
+                          </div>
+                        );
+                      })()
                       </div>
                       {canEdit ? (
                         <div className="row" style={{ flex: "0 0 auto", gap: 8 }}>
@@ -423,7 +459,7 @@ export default function Team({ supabase, isCommish }) {
                     <option value="HOME">HOME</option>
                     <option value="AWAY">AWAY</option>
                   </select>
-                  <input className="input" value={result} onChange={(e) => setResult(e.target.value)} placeholder="Result (optional)" />
+                  <input className="input" value={result} onChange={(e) => setResult(e.target.value)} placeholder="Result (optional) e.g. W 31-24" />
                   <button className="btn primary" type="submit">Save</button>
                 </div>
               </form>

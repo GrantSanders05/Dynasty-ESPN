@@ -518,3 +518,173 @@ a{color:inherit}
   margin:14px 0 8px;
   font-size:18px;
 }
+
+
+
+/* =========================
+   HEADLINES: big rolling banner ONLY
+   ========================= */
+.headlineWrap{gap:14px}
+/* Make the rolling ticker feel like the hero banner */
+.tickerBar{
+  padding:14px 14px;
+  border-radius:20px;
+}
+.tickerLabel{font-size:12px;padding:8px 12px}
+.tickerItem{font-size:18px}
+@media (max-width: 600px){
+  .tickerBar{padding:12px 12px;border-radius:18px}
+  .tickerItem{font-size:16px}
+}
+
+/* =========================
+   SOCIAL: thread cards + font tune
+   ========================= */
+.socialPage h1{
+  font-size:44px;
+  letter-spacing:.12em;
+}
+@media (max-width: 600px){ .socialPage h1{font-size:36px} }
+
+.postCard{
+  padding:14px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(640px 180px at 10% 12%, rgba(43,212,106,.10), transparent 60%),
+    radial-gradient(640px 180px at 92% 60%, rgba(47,137,255,.08), transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+  box-shadow:0 14px 28px rgba(0,0,0,.34);
+}
+.postHeader{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+.postAuthor{
+  font-family:"Oswald","Inter",system-ui,sans-serif;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  font-size:16px;
+}
+.postTime{color:rgba(244,247,251,.72);font-weight:800;font-size:12px}
+.postBody{
+  margin-top:6px;
+  font-weight:700;
+  font-size:14px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+.postActions{
+  margin-top:10px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.reactionPill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  border-radius:999px;
+  padding:6px 10px;
+  font-weight:900;
+  cursor:pointer;
+}
+.reactionPill:hover{background:rgba(255,255,255,.06)}
+.reactionPill.active{
+  background:rgba(43,212,106,.14);
+  border-color:rgba(43,212,106,.30);
+  box-shadow:0 0 0 3px rgba(43,212,106,.10) inset;
+}
+.reactionPill.negative.active{
+  background:rgba(255,90,95,.14);
+  border-color:rgba(255,90,95,.28);
+  box-shadow:0 0 0 3px rgba(255,90,95,.10) inset;
+}
+
+.thread{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.threadRow{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  position:relative;
+}
+.threadLine{
+  width:14px;
+  display:flex;
+  justify-content:center;
+  position:relative;
+}
+.threadLine::before{
+  content:"";
+  position:absolute;
+  top:0;bottom:0;
+  width:2px;
+  border-radius:99px;
+  background:linear-gradient(180deg, rgba(43,212,106,.55), rgba(255,255,255,.10));
+  opacity:.55;
+}
+.replyCard{
+  flex:1;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(0,0,0,.18);
+}
+.replyHeader{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:baseline;
+}
+.replyAuthor{
+  font-weight:950;
+  font-size:13px;
+}
+.replyTime{color:rgba(244,247,251,.65);font-weight:800;font-size:12px}
+.replyBody{
+  margin-top:4px;
+  font-weight:700;
+  font-size:13px;
+  line-height:1.45;
+  white-space:pre-wrap;
+}
+.replyComposer{
+  margin-top:12px;
+  padding:12px;
+  border-radius:16px;
+  border:1px dashed rgba(255,255,255,.14);
+  background:rgba(255,255,255,.02);
+}
+
+/* =========================
+   TEAM SCHEDULE: @ / vs + W/L pill
+   ========================= */
+.gameLine{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.gameLeft{font-weight:950}
+.gameMeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wlPill{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:34px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:950;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+}
+.wlPill.w{background:rgba(43,212,106,.16);border-color:rgba(43,212,106,.30)}
+.wlPill.l{background:rgba(255,90,95,.16);border-color:rgba(255,90,95,.28)}
+.scoreText{color:rgba(244,247,251,.80);font-weight:850}

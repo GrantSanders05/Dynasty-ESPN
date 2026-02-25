@@ -3,16 +3,9 @@ import PostCard from "../components/PostCard.jsx";
 
 /**
  * Social (Supabase)
- * Tables per your SUPABASE_SQL_V2.sql:
- * - social_posts: id, created_at, display_name, content
- * - social_votes: id, post_id, voter_key, value (1 or -1), created_at
- * - social_replies: id, post_id, parent_reply_id, display_name, content, created_at
- *
- * Notes:
- * - Votes are keyed by voter_key (NOT user_id). We create a stable voter_key per browser.
- * - If user is signed in, we still use the browser key to stay compatible with your DB.
+ * - Keeps all existing functionality (posts, reactions, replies)
+ * - Visual upgrade: thread replies render INSIDE the post card as a proper thread
  */
-
 const POSTS_TABLE = "social_posts";
 const VOTES_TABLE = "social_votes";
 const REPLIES_TABLE = "social_replies";
@@ -26,7 +19,6 @@ function getOrCreateVoterKey() {
     localStorage.setItem(VOTER_KEY_STORAGE, key);
     return key;
   } catch {
-    // If localStorage blocked, fall back to a session key
     return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 }
@@ -52,7 +44,6 @@ export default function Social({ supabase, user, isCommish }) {
     window.clearTimeout(flashNotice._t);
     flashNotice._t = window.setTimeout(() => setNotice(""), 3500);
   }
-
   function flashError(msg) {
     setError(msg);
     setNotice("");
@@ -84,7 +75,6 @@ export default function Social({ supabase, user, isCommish }) {
     const likes = {};
     const dislikes = {};
     const mine = {};
-
     for (const v of votes) {
       if (v.value === 1) likes[v.post_id] = (likes[v.post_id] || 0) + 1;
       if (v.value === -1) dislikes[v.post_id] = (dislikes[v.post_id] || 0) + 1;
@@ -104,7 +94,6 @@ export default function Social({ supabase, user, isCommish }) {
       grouped[rep.post_id].push(rep);
     }
 
-    // Hydrate counts
     const hydrated = list.map((post) => ({
       ...post,
       likes: likes[post.id] || 0,
@@ -114,7 +103,6 @@ export default function Social({ supabase, user, isCommish }) {
     setPosts(hydrated);
     setRepliesByPostId(grouped);
     setMyVotesByPostId(mine);
-
     setLoading(false);
   }
 
@@ -126,7 +114,6 @@ export default function Social({ supabase, user, isCommish }) {
   async function addPost(e) {
     e.preventDefault();
     if (!text.trim()) return flashError("Write something first.");
-
     setPosting(true);
     try {
       const { error } = await supabase.from(POSTS_TABLE).insert({
@@ -134,7 +121,6 @@ export default function Social({ supabase, user, isCommish }) {
         content: text.trim(),
       });
       if (error) throw error;
-
       setText("");
       flashNotice("Posted.");
       await loadSocial();
@@ -148,10 +134,8 @@ export default function Social({ supabase, user, isCommish }) {
   async function deletePost(id) {
     if (!isCommish) return;
     if (!confirm("Delete this post?")) return;
-
     try {
       await supabase.from(POSTS_TABLE).delete().eq("id", id);
-      // Child cleanup (safe even if FK cascade already handles it)
       await supabase.from(VOTES_TABLE).delete().eq("post_id", id);
       await supabase.from(REPLIES_TABLE).delete().eq("post_id", id);
       flashNotice("Deleted.");
@@ -162,15 +146,11 @@ export default function Social({ supabase, user, isCommish }) {
   }
 
   async function vote(postId, nextVote) {
-    // Your DB uses voter_key, not user_id
     const current = myVotesByPostId[postId]; // 1, -1, or undefined
     const shouldRemove = current === nextVote;
 
     try {
-      // Remove any existing vote for this voter_key/post
       await supabase.from(VOTES_TABLE).delete().eq("post_id", postId).eq("voter_key", voterKey);
-
-      // Add if not removing
       if (!shouldRemove) {
         const { error } = await supabase.from(VOTES_TABLE).insert({
           post_id: postId,
@@ -179,7 +159,6 @@ export default function Social({ supabase, user, isCommish }) {
         });
         if (error) throw error;
       }
-
       await loadSocial();
     } catch (e) {
       flashError(e?.message || "Reaction failed.");
@@ -188,7 +167,6 @@ export default function Social({ supabase, user, isCommish }) {
 
   async function reply(postId, displayName, content) {
     if (!content.trim()) return;
-
     try {
       const { error } = await supabase.from(REPLIES_TABLE).insert({
         post_id: postId,
@@ -203,35 +181,32 @@ export default function Social({ supabase, user, isCommish }) {
     }
   }
 
-  const headerRight = useMemo(() => {
-    if (loading) return "Loading...";
-    return `${posts.length} posts`;
-  }, [loading, posts.length]);
+  const headerRight = useMemo(() => (loading ? "Loading..." : `${posts.length} posts`), [loading, posts.length]);
 
   return (
-    <div>
-      <div className="pageHeader">
-        <div>
-          <h1 style={{ margin: 0 }}>Social</h1>
-          <div className="muted">Post updates, talk trash, drop clips.</div>
-        </div>
-        <div className="muted">{headerRight}</div>
-      </div>
+    <div className="page socialPage">
+      <h1>Social</h1>
+      <div className="muted" style={{ marginBottom: 8, fontWeight: 800 }}>Post updates, talk trash, drop clips.</div>
+      <div className="muted" style={{ marginBottom: 12 }}>{headerRight}</div>
 
       {(notice || error) ? (
-        <div style={{ marginBottom: 12 }}>
-          {notice ? <div className="banner notice">{notice}</div> : null}
-          {error ? <div className="banner error">{error}</div> : null}
+        <div className="row" style={{ marginBottom: 12 }}>
+          {notice ? (
+            <div className="card" style={{ borderColor: "rgba(43,212,106,.30)", background: "rgba(43,212,106,.08)", flex: 1 }}>{notice}</div>
+          ) : null}
+          {error ? (
+            <div className="card" style={{ borderColor: "rgba(255,90,95,.35)", background: "rgba(255,90,95,.08)", flex: 1 }}>{error}</div>
+          ) : null}
         </div>
       ) : null}
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card">
         <div className="cardHeader">
           <h2>Create Post</h2>
-          <div className="muted">Anyone can post. Reactions use a browser-based voter key.</div>
+          <div className="muted" style={{ fontWeight: 800 }}>Anyone can post. Reactions use a browser-based voter key.</div>
         </div>
 
-        <form className="form" onSubmit={addPost}>
+        <form onSubmit={addPost} className="form">
           <div className="row">
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" />
             <button className="btn primary" type="submit" disabled={posting}>
@@ -243,9 +218,9 @@ export default function Social({ supabase, user, isCommish }) {
       </div>
 
       {loading ? (
-        <div className="muted">Loading…</div>
+        <div className="muted" style={{ marginTop: 12 }}>Loading…</div>
       ) : posts.length === 0 ? (
-        <div className="muted">No posts yet.</div>
+        <div className="muted" style={{ marginTop: 12 }}>No posts yet.</div>
       ) : (
         <div className="stack">
           {posts.map((p) => (

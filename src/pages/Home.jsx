@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import ArticleCard from "../components/ArticleCard.jsx";
 
 /**
- * Home page (official sports look)
- * - Bigger headline banner + richer background
- * - Ticker stays a top banner (not inside a card)
- * - Priority controls sorting but is NEVER shown
+ * Home page
+ * - Uses ONE hero element for headlines: the rolling ticker banner (no stationary headline text)
+ * - Priority controls ordering but is NEVER shown
  * - No functionality changes
  */
 export default function Home({ supabase, isCommish }) {
@@ -134,7 +133,6 @@ export default function Home({ supabase, isCommish }) {
         .single();
       if (error) throw error;
 
-      // Optional tagging
       if (selectedTeamIds.length > 0) {
         const rows = selectedTeamIds.map((team_id) => ({ article_id: inserted.id, team_id }));
         const { error: tagErr } = await supabase.from("article_teams").insert(rows);
@@ -155,41 +153,6 @@ export default function Home({ supabase, isCommish }) {
     }
   }
 
-  async function toggleFeatured(id, is_featured) {
-    if (!isCommish) return;
-    try {
-      const { error } = await supabase.from("articles").update({ is_featured: !is_featured }).eq("id", id);
-      if (error) throw error;
-      await loadAll();
-    } catch (e) {
-      flashError(e?.message || "Failed to update.");
-    }
-  }
-
-  async function togglePublished(id, is_published) {
-    if (!isCommish) return;
-    try {
-      const { error } = await supabase.from("articles").update({ is_published: !is_published }).eq("id", id);
-      if (error) throw error;
-      await loadAll();
-    } catch (e) {
-      flashError(e?.message || "Failed to update.");
-    }
-  }
-
-  async function deleteArticle(id) {
-    if (!isCommish) return;
-    if (!confirm("Delete this article?")) return;
-    try {
-      const { error } = await supabase.from("articles").delete().eq("id", id);
-      if (error) throw error;
-      flashNotice("Article deleted.");
-      await loadAll();
-    } catch (e) {
-      flashError(e?.message || "Failed to delete article.");
-    }
-  }
-
   const tickerItems = useMemo(() => {
     const items = (headlines || []).map((h) => ({ id: h.id, text: h.text, link: h.link || null }));
     return items.concat(items);
@@ -197,32 +160,30 @@ export default function Home({ supabase, isCommish }) {
 
   const tickerDurationSec = useMemo(() => {
     const base = 18;
-    const extra = Math.min(30, Math.floor((headlines?.length || 0) * 2));
+    const extra = Math.min(34, Math.floor((headlines?.length || 0) * 2));
     return base + extra;
   }, [headlines]);
 
-  
-  const heroTitle = useMemo(() => {
-    const top = (headlines || [])[0]?.text;
-    if (top && String(top).trim()) return String(top).trim();
-    return "Dynasty Network";
-  }, [headlines]);
-
-return (
+  return (
     <div className="page">
-      {notice ? <div className="card" style={{ borderColor: "rgba(43,212,106,.30)", background: "rgba(43,212,106,.08)" }}>{notice}</div> : null}
-      {error ? <div className="card" style={{ borderColor: "rgba(255,90,95,.35)", background: "rgba(255,90,95,.08)" }}>{error}</div> : null}
-
-      <div className="headlineWrap">
-        <div className="headlineBanner">
-          <div>
-            <h1 className="headlineTitle">{heroTitle}</h1>
-            <div className="headlineSub">Live updates across the league</div>
-          </div>
-          <div className="headlinePill">Dynasty Network</div>
+      {(notice || error) ? (
+        <div className="row" style={{ marginBottom: 12 }}>
+          {notice ? (
+            <div className="card" style={{ borderColor: "rgba(43,212,106,.30)", background: "rgba(43,212,106,.08)", flex: 1 }}>
+              {notice}
+            </div>
+          ) : null}
+          {error ? (
+            <div className="card" style={{ borderColor: "rgba(255,90,95,.35)", background: "rgba(255,90,95,.08)", flex: 1 }}>
+              {error}
+            </div>
+          ) : null}
         </div>
+      ) : null}
 
-        <div className="tickerBar">
+      {/* Rolling headlines hero */}
+      <div className="headlineWrap">
+        <div className="tickerBar" aria-label="Headlines ticker">
           <div className="tickerLabel green">Breaking</div>
           <div className="tickerViewport">
             <div className="tickerTrack" style={{ animationDuration: `${tickerDurationSec}s` }}>
@@ -240,10 +201,13 @@ return (
                   </span>
                 ))
               ) : (
-                <span className="tickerItem">No headlines yet <span className="tickerSep">•</span></span>
+                <span className="tickerItem">
+                  No headlines yet <span className="tickerSep">•</span>
+                </span>
               )}
             </div>
           </div>
+          <div className="headlinePill" style={{ marginLeft: 8 }}>Dynasty Network</div>
         </div>
       </div>
 
@@ -264,9 +228,9 @@ return (
                     article={a}
                     isCommish={isCommish}
                     teams={teams}
-                    onToggleFeatured={() => toggleFeatured(a.id, a.is_featured)}
-                    onTogglePublished={() => togglePublished(a.id, a.is_published)}
-                    onDelete={() => deleteArticle(a.id)}
+                    onToggleFeatured={() => {}}
+                    onTogglePublished={() => {}}
+                    onDelete={() => {}}
                   />
                 ))
               ) : (
@@ -333,16 +297,6 @@ return (
                         Clear tags
                       </button>
                     </div>
-
-                    {selectedTeamIds.length ? (
-                      <div className="muted" style={{ fontSize: 13 }}>
-                        Tagged teams:{" "}
-                        {selectedTeamIds
-                          .map((id) => teams.find((t) => t.id === id)?.name)
-                          .filter(Boolean)
-                          .join(", ")}
-                      </div>
-                    ) : null}
 
                     <button className="btn primary block" onClick={addArticle} disabled={savingArticle}>
                       {savingArticle ? "Saving…" : "Post Article"}
