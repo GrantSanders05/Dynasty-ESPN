@@ -5,6 +5,7 @@ import PostCard from "../components/PostCard.jsx";
  * Social (Supabase)
  * - Keeps all existing functionality (posts, reactions, replies)
  * - Visual upgrade: thread replies render INSIDE the post card as a proper thread
+ * - Fix: reply() now throws on error so PostCard knows it failed and shows the error
  */
 const POSTS_TABLE = "social_posts";
 const VOTES_TABLE = "social_votes";
@@ -146,7 +147,7 @@ export default function Social({ supabase, user, isCommish }) {
   }
 
   async function vote(postId, nextVote) {
-    const current = myVotesByPostId[postId]; // 1, -1, or undefined
+    const current = myVotesByPostId[postId];
     const shouldRemove = current === nextVote;
 
     try {
@@ -165,20 +166,22 @@ export default function Social({ supabase, user, isCommish }) {
     }
   }
 
+  // FIX: reply now throws on error so PostCard knows the insert failed.
+  // This prevents the text from clearing on failure and surfaces the
+  // exact Supabase error message in the banner at the top of the page.
   async function reply(postId, displayName, content) {
     if (!content.trim()) return;
-    try {
-      const { error } = await supabase.from(REPLIES_TABLE).insert({
-        post_id: postId,
-        parent_reply_id: null,
-        display_name: (displayName || "").trim() || "Anonymous",
-        content: content.trim(),
-      });
-      if (error) throw error;
-      await loadSocial();
-    } catch (e) {
-      flashError(e?.message || "Reply failed.");
+    const { error } = await supabase.from(REPLIES_TABLE).insert({
+      post_id: postId,
+      parent_reply_id: null,
+      display_name: (displayName || "").trim() || "Anonymous",
+      content: content.trim(),
+    });
+    if (error) {
+      flashError(error.message || "Reply failed.");
+      throw error; // re-throw so PostCard does NOT clear the text box
     }
+    await loadSocial();
   }
 
   const headerRight = useMemo(() => (loading ? "Loading..." : `${posts.length} posts`), [loading, posts.length]);
