@@ -688,3 +688,139 @@ a{color:inherit}
 .wlPill.w{background:rgba(43,212,106,.16);border-color:rgba(43,212,106,.30)}
 .wlPill.l{background:rgba(255,90,95,.16);border-color:rgba(255,90,95,.28)}
 .scoreText{color:rgba(244,247,251,.80);font-weight:850}
+
+/* =====================================================
+   RESPONSIVE OPTIMIZATION (phone + tablet + desktop)
+   Merged into styles.css (No functionality changes)
+   ===================================================== */
+
+/* 1) Global sizing + safer wrapping */
+html{ -webkit-text-size-adjust: 100%; }
+img, video, canvas, svg{ max-width:100%; height:auto; }
+*{ word-break: break-word; }
+a{ word-break: break-word; }
+
+/* 2) Container widths */
+.page, .teamPage{
+  width: min(1200px, calc(100% - 32px));
+}
+@media (max-width: 480px){
+  .page, .teamPage{ width: calc(100% - 20px); }
+}
+
+/* 3) Typography scaling */
+:root{
+  --h1: 40px;
+  --h2: 18px;
+  --body: 14px;
+}
+body{ font-size: var(--body); }
+
+@media (max-width: 900px){
+  :root{ --h1: 34px; --h2: 17px; --body: 14px; }
+}
+@media (max-width: 600px){
+  :root{ --h1: 30px; --h2: 16px; --body: 14px; }
+}
+@media (max-width: 420px){
+  :root{ --h1: 28px; --h2: 15px; --body: 13.5px; }
+}
+
+/* Apply vars to your existing heading selectors (safe overrides) */
+.page h1, .teamPage h1{ font-size: var(--h1); }
+.cardHeader h2{ font-size: var(--h2); }
+
+/* 4) Cards + spacing */
+@media (max-width: 900px){
+  .card{ padding: 12px; border-radius: 16px; }
+  .listItem{ padding: 12px; border-radius: 16px; }
+}
+@media (max-width: 600px){
+  .card{ padding: 12px; }
+  .list{ gap: 10px; }
+  .row{ gap: 10px; }
+}
+
+/* 5) Forms: force buttons to stay reachable */
+@media (max-width: 700px){
+  .row>*{ min-width: 0; flex: 1 1 160px; }
+  .row>.btn, .row>button{
+    flex: 1 1 140px;
+    width: 100%;
+  }
+  .btn.block{ width: 100%; }
+}
+
+/* 6) Navbar: prevent overflow + better mobile layout
+   Works with your current Navbar (no JS changes needed) */
+@media (max-width: 860px){
+  .topbar{
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 12px;
+  }
+
+  .brand{ min-width: 0; flex: 1 1 260px; }
+  .navRight{ width: 100%; justify-content: flex-start; }
+
+  /* When your hamburger toggles, .nav is shown with inline style. We make it look like a panel. */
+  .nav{
+    width: 100%;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(10,14,18,.55);
+    border-radius: 16px;
+  }
+  .navBtn{ flex: 1 1 auto; justify-content: center; }
+}
+
+/* Dropdown panel on mobile: full-width so it’s easy to tap */
+@media (max-width: 600px){
+  .menu{
+    left: 0;
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  .menuItem{ padding: 12px 12px; }
+  .menuSearch{ padding: 12px 12px; }
+}
+
+/* 7) Headlines ticker: readable on phones */
+@media (max-width: 700px){
+  .tickerBar{ padding: 12px 12px; border-radius: 18px; }
+  .tickerItem{ font-size: 16px; }
+}
+@media (max-width: 420px){
+  .tickerItem{ font-size: 15px; letter-spacing: .35px; }
+  .tickerLabel{ padding: 7px 10px; }
+}
+
+/* 8) Team hero: stack nicely on small screens */
+@media (max-width: 700px){
+  .teamHero{ padding: 14px; border-radius: 18px; }
+  .teamHeroHeader{ gap: 12px; }
+  .teamLogoHero{ width: 150px; height: 150px; border-radius: 18px; }
+}
+@media (max-width: 480px){
+  .teamLogoHero{ width: 130px; height: 130px; }
+  .teamNameBig{ font-size: 30px; }
+}
+
+/* 9) Social threads: tighter + more tap-friendly */
+@media (max-width: 600px){
+  .postCard{ padding: 12px; }
+  .postActions{ gap: 8px; }
+  .reactionPill{ padding: 8px 10px; }
+  .replyComposer{ padding: 10px; }
+}
+
+/* 10) Podcast audio: prevent overflow */
+audio{ width: 100%; }
+
+/* 11) Reduce animation on users who prefer it */
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
