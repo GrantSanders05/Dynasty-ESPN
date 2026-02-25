@@ -824,3 +824,66 @@ audio{ width: 100%; }
   *{ animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
 
+/* =====================================================
+   MINOR TWEAKS (Requested)
+   1) Background feels less static + blends better
+   2) Article titles 4–6pt bigger than body text
+   3) iPhone Teams dropdown: prevent squished names
+   (CSS-only overrides; no JS/functionality changes)
+   ===================================================== */
+
+/* 1) Background: add a subtle moving sheen so it doesn't feel "stuck" */
+body::after{
+  /* keep your existing vignette, but add a gentle drift */
+  animation: vignetteDrift 22s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes vignetteDrift{
+  0%{ transform: translate3d(0,0,0); }
+  50%{ transform: translate3d(-12px, 10px, 0); }
+  100%{ transform: translate3d(0,0,0); }
+}
+
+/* Add a soft dark overlay to help text/cards blend with the background */
+body::before{
+  /* keep your scanlines, and add a subtle dark tint underneath */
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.18)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,.018) 0px,
+      rgba(255,255,255,.018) 1px,
+      transparent 1px,
+      transparent 7px
+    );
+}
+
+/* 2) Article titles: +4–6pt vs body (body ~14px) */
+.cardTitle{
+  font-size: 20px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+}
+@media (max-width: 420px){
+  .cardTitle{ font-size: 19px !important; }
+}
+
+/* 3) Teams dropdown on iPhone: stop squishing long team names */
+@media (max-width: 420px){
+  .menu{ width: calc(100vw - 16px); }
+  .menuItem{
+    justify-content: flex-start;
+    align-items: flex-start;
+    white-space: normal;
+    line-height: 1.2;
+  }
+  /* allow children to wrap instead of forcing squeeze */
+  .menuItem > *{ min-width: 0; }
+  /* If the right-side meta exists, keep it from crowding the title */
+  .menuMeta{
+    margin-left: 0;
+    margin-top: 4px;
+    align-self: flex-start;
+    opacity: .85;
+  }
+}
