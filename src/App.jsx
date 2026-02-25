@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Routes, Route } from "react-router-dom";
-import { supabase } from "./supabaseClient.js";
 
+import { supabase } from "./supabaseClient.js";
 import Navbar from "./components/Navbar.jsx";
 import { Banner } from "./components/Banners.jsx";
 
@@ -11,46 +11,19 @@ import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
-const [isCommish, setIsCommish] = useState(false);
 
-useEffect(() => {
-  let cancelled = false;
-
-  async function check() {
-    const e = (user?.email || "").toLowerCase().trim();
-    if (!e) {
-      setIsCommish(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("commissioners")
-      .select("email")
-      .eq("email", e)
-      .maybeSingle();
-
-    if (cancelled) return;
-
-    if (error) {
-      console.warn("Commissioner check failed:", error.message);
-      // safest fallback: treat as NOT commish if check fails
-      setIsCommish(false);
-      return;
-    }
-
-    setIsCommish(!!data?.email);
-  }
-
-  check();
-  return () => {
-    cancelled = true;
-  };
-}, [user?.email]);
+// ✅ MULTI-COMMISSIONER ALLOW LIST (frontend UI gating)
+const COMMISH_EMAILS = [
+  "grantssanders05@gmail.com",
+  "tylerpoole113@gmail.com",
+].map((e) => e.toLowerCase());
 
 function withTimeout(promise, ms = 2000) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Auth timeout")), ms)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Auth timeout")), ms)
+    ),
   ]);
 }
 
@@ -67,9 +40,10 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // ✅ Safe: same pattern you already had, just checks a list instead of 1 email
   const isCommish = useMemo(() => {
     const e = (user?.email || "").toLowerCase();
-    return e && e === COMMISH_EMAIL.toLowerCase();
+    return !!e && COMMISH_EMAILS.includes(e);
   }, [user]);
 
   function flashNotice(msg) {
@@ -87,7 +61,11 @@ export default function App() {
   }
 
   async function loadTeams() {
-    const res = await supabase.from("teams").select("*").order("name", { ascending: true });
+    const res = await supabase
+      .from("teams")
+      .select("*")
+      .order("name", { ascending: true });
+
     if (!res.error) setTeams(res.data || []);
   }
 
@@ -100,7 +78,7 @@ export default function App() {
       console.warn("refreshSession:", e?.message || e);
       setUser(null);
       flashError(
-        "Auth check timed out. If this keeps happening: 1) Hard refresh (Ctrl+Shift+R), 2) Try Incognito, 3) Confirm Supabase Auth → URL Configuration has your Vercel URL."
+        "Auth check timed out.\nIf this keeps happening: 1) Hard refresh (Ctrl+Shift+R), 2) Try Incognito, 3) Confirm Supabase Auth → URL Configuration has your Vercel URL."
       );
     } finally {
       setAuthLoading(false);
@@ -110,15 +88,18 @@ export default function App() {
   useEffect(() => {
     refreshSession();
     loadTeams();
+
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       refreshSession();
     });
+
     return () => sub?.subscription?.unsubscribe?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInOrUp(e) {
     e.preventDefault();
+
     if (!email || !password) return flashError("Enter email and password.");
 
     setAuthLoading(true);
@@ -128,10 +109,14 @@ export default function App() {
         if (error) throw error;
         flashNotice("Signed up! Check email if confirmations are enabled.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
         flashNotice("Signed in.");
       }
+
       setEmail("");
       setPassword("");
       await refreshSession();
@@ -156,8 +141,9 @@ export default function App() {
     }
   }
 
+  // Keep auth UI inline (same behavior, just readable)
   const authSlot = !user ? (
-    <form className="authForm" onSubmit={signInOrUp}>
+    <form className="authRow" onSubmit={signInOrUp}>
       <input
         className="input"
         value={email}
@@ -188,7 +174,7 @@ export default function App() {
   ) : null;
 
   return (
-    <div className="app">
+    <>
       <Navbar
         appTitle={APP_TITLE}
         teams={teams}
@@ -199,16 +185,23 @@ export default function App() {
         authLoading={authLoading}
       />
 
-      <main className="page">
-        <Banner notice={notice} error={error} />
+      <Banner notice={notice} error={error} />
 
-        <Routes>
-          <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} />} />
-          <Route path="/social" element={<Social supabase={supabase} user={user} isCommish={isCommish} />} />
-          <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
-          <Route path="/team/:slug" element={<Team supabase={supabase} isCommish={isCommish} user={user} />} />
-        </Routes>
-      </main>
-    </div>
+      <Routes>
+        <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} />} />
+        <Route
+          path="/podcast"
+          element={<Podcast supabase={supabase} isCommish={isCommish} />}
+        />
+        <Route
+          path="/social"
+          element={<Social supabase={supabase} isCommish={isCommish} user={user} />}
+        />
+        <Route
+          path="/team/:slug"
+          element={<Team supabase={supabase} isCommish={isCommish} />}
+        />
+      </Routes>
+    </>
   );
 }
