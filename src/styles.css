@@ -911,3 +911,32 @@ body::after{
   display:none !important;
   content:none !important;
 }
+
+/* Phone fix: Teams dropdown items shouldn't squish */
+@media (max-width: 520px) {
+  /* Make dropdown panel fit the screen nicely */
+  .menu {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Stack name + slug so the name never gets squeezed */
+  .menuItem {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    white-space: normal !important;
+  }
+
+  /* Put slug on its own line, smaller */
+  .menuMeta {
+    margin-left: 0 !important;
+    font-size: 12px !important;
+    opacity: 0.75 !important;
+    white-space: nowrap !important;
+  }
+}
