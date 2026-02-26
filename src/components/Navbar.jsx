@@ -24,7 +24,9 @@ export default function Navbar({
     const s = q.trim().toLowerCase();
     if (!s) return teamLinks;
     return teamLinks.filter(
-      (t) => t.name.toLowerCase().includes(s) || t.slug.toLowerCase().includes(s)
+      (t) =>
+        t.name.toLowerCase().includes(s) ||
+        t.slug.toLowerCase().includes(s)
     );
   }, [q, teamLinks]);
 
@@ -43,92 +45,16 @@ export default function Navbar({
     };
   }, []);
 
-  /* Close everything when navigating */
   function closeAll() {
     setTeamsOpen(false);
     setMobileOpen(false);
     setQ("");
   }
 
-  /* The nav links — reused in both desktop and mobile */
-  const navLinks = (
-    <>
-      <NavLink
-        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
-        to="/"
-        onClick={closeAll}
-      >
-        Home
-      </NavLink>
-
-      {/* Teams dropdown */}
-      <div className="dropdown" ref={dropdownRef}>
-        <button
-          className={teamsOpen ? "navBtn active" : "navBtn"}
-          onClick={() => setTeamsOpen((v) => !v)}
-          aria-expanded={teamsOpen}
-          type="button"
-        >
-          Teams ▾
-        </button>
-
-        {teamsOpen && (
-          <div className="menu" role="menu" aria-label="Teams">
-            <div className="menuTop">
-              <input
-                className="menuSearch"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search teams…"
-                autoFocus
-              />
-              <button className="btn small" type="button" onClick={() => setQ("")}>
-                Clear
-              </button>
-            </div>
-
-            <div className="menuGrid">
-              {filtered.length ? (
-                filtered.map((t) => (
-                  <Link
-                    key={t.slug}
-                    className="menuItem"
-                    to={`/team/${t.slug}`}
-                    onClick={closeAll}
-                  >
-                    <span>{t.name}</span>
-                    <span className="menuMeta">{t.slug}</span>
-                  </Link>
-                ))
-              ) : (
-                <div className="menuEmpty">No matches.</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <NavLink
-        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
-        to="/podcast"
-        onClick={closeAll}
-      >
-        Podcast
-      </NavLink>
-
-      <NavLink
-        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
-        to="/social"
-        onClick={closeAll}
-      >
-        Social
-      </NavLink>
-    </>
-  );
-
   return (
     <div className="topbar">
-      {/* Brand */}
+
+      {/* ── Brand ── */}
       <div className="brand">
         <Link className="brandLink" to="/" onClick={closeAll}>
           <div className="brandMark" />
@@ -139,12 +65,88 @@ export default function Navbar({
         </Link>
       </div>
 
-      {/* Desktop nav — hidden on mobile via CSS */}
-      <nav className="nav" style={{ display: mobileOpen ? "flex" : undefined }}>
-        {navLinks}
+      {/* ── Nav links (hidden on mobile until hamburger pressed) ── */}
+      <nav
+        className="nav"
+        style={{ display: mobileOpen ? "flex" : undefined }}
+      >
+        <NavLink
+          className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+          to="/"
+          onClick={closeAll}
+        >
+          Home
+        </NavLink>
+
+        {/* Teams dropdown */}
+        <div className="dropdown" ref={dropdownRef}>
+          <button
+            className={teamsOpen ? "navBtn active" : "navBtn"}
+            onClick={() => setTeamsOpen((v) => !v)}
+            aria-expanded={teamsOpen}
+            type="button"
+          >
+            Teams ▾
+          </button>
+
+          {teamsOpen && (
+            <div className="menu" role="menu" aria-label="Teams">
+              <div className="menuTop">
+                <input
+                  className="menuSearch"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search teams…"
+                />
+                <button
+                  className="btn small"
+                  type="button"
+                  onClick={() => setQ("")}
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="menuGrid">
+                {filtered.length ? (
+                  filtered.map((t) => (
+                    <Link
+                      key={t.slug}
+                      className="menuItem"
+                      to={`/team/${t.slug}`}
+                      onClick={closeAll}
+                    >
+                      {/* menuItemName wraps; menuMeta stays on one line */}
+                      <span className="menuItemName">{t.name}</span>
+                      <span className="menuMeta">{t.slug}</span>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="menuEmpty">No matches.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <NavLink
+          className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+          to="/podcast"
+          onClick={closeAll}
+        >
+          Podcast
+        </NavLink>
+
+        <NavLink
+          className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+          to="/social"
+          onClick={closeAll}
+        >
+          Social
+        </NavLink>
       </nav>
 
-      {/* Auth area */}
+      {/* ── Auth area ── */}
       <div className="navRight">
         {authSlot ? (
           authSlot
@@ -168,7 +170,7 @@ export default function Navbar({
         )}
       </div>
 
-      {/* Hamburger — shown on mobile */}
+      {/* ── Hamburger (mobile only) ── */}
       <button
         className="hamburger"
         onClick={() => setMobileOpen((v) => !v)}
@@ -178,6 +180,7 @@ export default function Navbar({
       >
         {mobileOpen ? "✕ Close" : "☰ Menu"}
       </button>
+
     </div>
   );
 }
