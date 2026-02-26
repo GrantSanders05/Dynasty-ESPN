@@ -1,11 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 
-/**
- * Navbar (official sports vibe)
- * - Fixes Teams dropdown (real panel, scroll, search, closes on outside click)
- * - Adds mobile hamburger without changing routing/auth functionality
- */
 export default function Navbar({
   appTitle,
   teams = [],
@@ -15,7 +10,7 @@ export default function Navbar({
   authSlot,
   authLoading,
 }) {
-  const [open, setOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen]   = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [q, setQ] = useState("");
   const dropdownRef = useRef(null);
@@ -28,122 +23,161 @@ export default function Navbar({
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return teamLinks;
-    return teamLinks.filter((t) => t.name.toLowerCase().includes(s) || t.slug.toLowerCase().includes(s));
+    return teamLinks.filter(
+      (t) => t.name.toLowerCase().includes(s) || t.slug.toLowerCase().includes(s)
+    );
   }, [q, teamLinks]);
 
+  /* Close teams dropdown on outside click/touch */
   useEffect(() => {
-    function onDocPointerDown(e) {
-      const el = dropdownRef.current;
-      if (!el) return;
-      if (el.contains(e.target)) return;
-      setOpen(false);
+    function handler(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setTeamsOpen(false);
+      }
     }
-    document.addEventListener("mousedown", onDocPointerDown);
-    document.addEventListener("touchstart", onDocPointerDown, { passive: true });
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler, { passive: true });
     return () => {
-      document.removeEventListener("mousedown", onDocPointerDown);
-      document.removeEventListener("touchstart", onDocPointerDown);
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
     };
   }, []);
 
-  // Close dropdown on route changes via click
+  /* Close everything when navigating */
   function closeAll() {
-    setOpen(false);
+    setTeamsOpen(false);
     setMobileOpen(false);
+    setQ("");
   }
+
+  /* The nav links — reused in both desktop and mobile */
+  const navLinks = (
+    <>
+      <NavLink
+        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+        to="/"
+        onClick={closeAll}
+      >
+        Home
+      </NavLink>
+
+      {/* Teams dropdown */}
+      <div className="dropdown" ref={dropdownRef}>
+        <button
+          className={teamsOpen ? "navBtn active" : "navBtn"}
+          onClick={() => setTeamsOpen((v) => !v)}
+          aria-expanded={teamsOpen}
+          type="button"
+        >
+          Teams ▾
+        </button>
+
+        {teamsOpen && (
+          <div className="menu" role="menu" aria-label="Teams">
+            <div className="menuTop">
+              <input
+                className="menuSearch"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search teams…"
+                autoFocus
+              />
+              <button className="btn small" type="button" onClick={() => setQ("")}>
+                Clear
+              </button>
+            </div>
+
+            <div className="menuGrid">
+              {filtered.length ? (
+                filtered.map((t) => (
+                  <Link
+                    key={t.slug}
+                    className="menuItem"
+                    to={`/team/${t.slug}`}
+                    onClick={closeAll}
+                  >
+                    <span>{t.name}</span>
+                    <span className="menuMeta">{t.slug}</span>
+                  </Link>
+                ))
+              ) : (
+                <div className="menuEmpty">No matches.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <NavLink
+        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+        to="/podcast"
+        onClick={closeAll}
+      >
+        Podcast
+      </NavLink>
+
+      <NavLink
+        className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+        to="/social"
+        onClick={closeAll}
+      >
+        Social
+      </NavLink>
+    </>
+  );
 
   return (
     <div className="topbar">
+      {/* Brand */}
       <div className="brand">
         <Link className="brandLink" to="/" onClick={closeAll}>
           <div className="brandMark" />
           <div className="brandText">
             <div className="brandTitle">{appTitle}</div>
-            <div className="brandSub">SportsCenter-style dynasty coverage</div>
+            <div className="brandSub">Dynasty Coverage</div>
           </div>
         </Link>
       </div>
 
-      <button
-        className="hamburger"
-        onClick={() => setMobileOpen((v) => !v)}
-        aria-label="Toggle menu"
-      >
-        {mobileOpen ? "Close" : "Menu"}
-      </button>
+      {/* Desktop nav — hidden on mobile via CSS */}
+      <nav className="nav" style={{ display: mobileOpen ? "flex" : undefined }}>
+        {navLinks}
+      </nav>
 
-      <div className="nav" style={{ display: mobileOpen ? "flex" : undefined }}>
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/" onClick={closeAll}>
-          Home
-        </NavLink>
-
-        <div className="dropdown" ref={dropdownRef}>
-          <button className="navBtn" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            Teams <span className="chev">▾</span>
-          </button>
-
-          {open && (
-            <div className="menu" role="menu" aria-label="Teams">
-              <div className="menuTop">
-                <input
-                  className="menuSearch"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search teams…"
-                />
-                <button className="btn small" onClick={() => setQ("")}>
-                  Clear
-                </button>
-              </div>
-
-              <div className="menuGrid">
-                {filtered.length ? (
-                  filtered.map((t) => (
-                    <Link key={t.slug} className="menuItem" to={`/team/${t.slug}`} onClick={closeAll}>
-                      <span>{t.name}</span>
-                      <span className="menuMeta">{t.slug}</span>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="menuEmpty">No matches.</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/podcast" onClick={closeAll}>
-          Podcast
-        </NavLink>
-
-        <NavLink className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")} to="/social" onClick={closeAll}>
-          Social
-        </NavLink>
-      </div>
-
+      {/* Auth area */}
       <div className="navRight">
-        {/* Keep your existing auth UI */}
         {authSlot ? (
           authSlot
         ) : (
           <div className="authBox">
             {authLoading ? (
-              <span className="muted">Loading…</span>
+              <span className="muted" style={{ fontSize: 12 }}>Loading…</span>
             ) : userEmail ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <>
                 <span className="pill">
-                  Signed in{isCommish ? <span style={{ fontWeight: 950 }}> • COMMISH</span> : null}
+                  {isCommish ? "Commish" : "Signed in"}
                 </span>
-                <button className="btn" onClick={onSignOut}>
+                <button className="btn small" onClick={onSignOut} type="button">
                   Sign out
                 </button>
-              </div>
+              </>
             ) : (
-              <span className="muted">Not signed in</span>
+              <span className="muted" style={{ fontSize: 12 }}>Not signed in</span>
             )}
           </div>
         )}
       </div>
+
+      {/* Hamburger — shown on mobile */}
+      <button
+        className="hamburger"
+        onClick={() => setMobileOpen((v) => !v)}
+        aria-label="Toggle navigation"
+        aria-expanded={mobileOpen}
+        type="button"
+      >
+        {mobileOpen ? "✕ Close" : "☰ Menu"}
+      </button>
     </div>
   );
 }
