@@ -761,31 +761,42 @@ audio { width: 100%; margin-top: 10px; }
 .scoreText { color: rgba(244,247,251,.78); font-weight: 850; font-size: 13px; }
 
 /* ============================================================
+   ARTICLES + SPONSORS GRID (articles wider, sponsors narrower)
+   ============================================================ */
+.gridArticles {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 860px) { .gridArticles { grid-template-columns: 1fr; } }
+
+/* ============================================================
    SPONSOR CARDS
    ============================================================ */
 .sponsorCard {
-  padding: var(--cp);
-  border-radius: 18px;
-  border: 1px solid rgba(43,212,106,.20);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(43,212,106,.18);
   background:
-    radial-gradient(600px 200px at 50% 0%, rgba(43,212,106,.07), transparent 65%),
+    radial-gradient(400px 120px at 50% 0%, rgba(43,212,106,.06), transparent 65%),
     linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .sponsorThankYou {
   font-family: "Oswald", sans-serif;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--accent);
-  opacity: .85;
+  opacity: .80;
 }
 
 .sponsorLogoWrap {
@@ -793,23 +804,22 @@ audio { width: 100%; margin-top: 10px; }
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 220px;
-  min-height: 80px;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.06);
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.05);
   border: 1px solid var(--border);
   transition: background .15s, border-color .15s;
   text-decoration: none;
 }
 a.sponsorLogoWrap:hover {
-  background: rgba(255,255,255,.10);
-  border-color: rgba(43,212,106,.30);
+  background: rgba(255,255,255,.09);
+  border-color: rgba(43,212,106,.28);
 }
 
 .sponsorLogo {
   max-width: 100%;
-  max-height: 100px;
+  max-height: 56px;
   width: auto;
   height: auto;
   object-fit: contain;
@@ -817,9 +827,9 @@ a.sponsorLogoWrap:hover {
 }
 
 .sponsorName {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
-  letter-spacing: .04em;
+  letter-spacing: .03em;
   color: var(--muted);
 }
 
