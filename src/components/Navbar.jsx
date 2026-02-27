@@ -139,6 +139,14 @@ export default function Navbar({
 
         <NavLink
           className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
+          to="/rankings"
+          onClick={closeAll}
+        >
+          Rankings
+        </NavLink>
+
+        <NavLink
+          className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
           to="/social"
           onClick={closeAll}
         >
