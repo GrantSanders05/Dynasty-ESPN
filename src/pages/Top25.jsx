@@ -10,6 +10,7 @@ export default function Top25({ supabase, isCommish }) {
       pageTitle="Top 25"
       pageSubtitle="National top 25 rankings"
       showConference={false}
+      splitAfter={5}
       placeholder={"1. Alabama (8-0)\n2. Georgia (7-1)\n3. Ohio State (7-1)\n..."}
     />
   );

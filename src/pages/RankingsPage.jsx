@@ -167,54 +167,77 @@ function getRankColor(rank) {
   return null;
 }
 
-// ─── Shared list renderer ─────────────────────────────────────────────────────
-export function RankingsList({ rankings, showConference }) {
+// ─── Single row ──────────────────────────────────────────────────────────────
+function RankingsRow({ team, showConference }) {
+  const color = getRankColor(team.rank);
   return (
-    <div className="rankingsList">
-      {rankings.map((team, idx) => {
-        const color = getRankColor(team.rank);
-        return (
-          <div key={idx} className={`rankingsRow${team.rank <= 3 ? " rankingsRowTop" : ""}${showConference ? " rankingsRowConf" : ""}`}>
+    <div className={`rankingsRow${team.rank <= 3 ? " rankingsRowTop" : ""}${showConference ? " rankingsRowConf" : ""}`}>
+      <div className="rankingsRank" style={color ? { color } : undefined}>
+        {team.rank}
+      </div>
+      <div className="rankingsLogoWrap">
+        {team.logo ? (
+          <img
+            src={team.logo}
+            alt={team.name}
+            className="rankingsLogo"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
+        ) : (
+          <div className="rankingsLogoPlaceholder" />
+        )}
+      </div>
+      <div className="rankingsName">{team.name}</div>
+      <div className="rankingsRecords">
+        {team.overall ? (
+          <span className="rankingsRecord">{team.overall}</span>
+        ) : (
+          <span className="rankingsRecord rankingsRecordEmpty">—</span>
+        )}
+        {showConference && (
+          <span className="rankingsConfRecord">{team.conf || "—"}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-            {/* Rank */}
-            <div className="rankingsRank" style={color ? { color } : undefined}>
-              {team.rank}
-            </div>
+// ─── Shared list renderer ─────────────────────────────────────────────────────
+// When splitAfter is set (e.g. 5), the first N are full-width and the rest
+// split into two columns side by side on desktop.
+export function RankingsList({ rankings, showConference, splitAfter }) {
+  const top  = splitAfter ? rankings.filter((t) => t.rank <= splitAfter) : rankings;
+  const rest = splitAfter ? rankings.filter((t) => t.rank >  splitAfter) : [];
 
-            {/* Logo */}
-            <div className="rankingsLogoWrap">
-              {team.logo ? (
-                <img
-                  src={team.logo}
-                  alt={team.name}
-                  className="rankingsLogo"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }}
-                />
-              ) : (
-                <div className="rankingsLogoPlaceholder" />
-              )}
-            </div>
+  // Split rest into left and right columns
+  const mid   = Math.ceil(rest.length / 2);
+  const left  = rest.slice(0, mid);
+  const right = rest.slice(mid);
 
-            {/* Name */}
-            <div className="rankingsName">{team.name}</div>
+  return (
+    <div>
+      {/* Top N — full width */}
+      <div className="rankingsList">
+        {top.map((team, idx) => (
+          <RankingsRow key={idx} team={team} showConference={showConference} />
+        ))}
+      </div>
 
-            {/* Records */}
-            <div className="rankingsRecords">
-              {team.overall ? (
-                <span className="rankingsRecord">{team.overall}</span>
-              ) : (
-                <span className="rankingsRecord rankingsRecordEmpty">—</span>
-              )}
-              {showConference && (
-                <span className="rankingsConfRecord">
-                  {team.conf ? team.conf : "—"}
-                </span>
-              )}
-            </div>
-
+      {/* Rest — two columns on desktop, single column on mobile */}
+      {rest.length > 0 && (
+        <div className="rankingsColumns">
+          <div className="rankingsList rankingsCol">
+            {left.map((team, idx) => (
+              <RankingsRow key={idx} team={team} showConference={showConference} />
+            ))}
           </div>
-        );
-      })}
+          <div className="rankingsList rankingsCol">
+            {right.map((team, idx) => (
+              <RankingsRow key={idx} team={team} showConference={showConference} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -223,11 +246,12 @@ export function RankingsList({ rankings, showConference }) {
 export default function RankingsPage({
   supabase,
   isCommish,
-  settingKey,       // unique site_settings key e.g. "rankings_top25"
-  pageTitle,        // h1 text
-  pageSubtitle,     // muted line under h1
-  showConference,   // boolean — show conf record column
-  placeholder,      // textarea placeholder hint
+  settingKey,
+  pageTitle,
+  pageSubtitle,
+  showConference,
+  splitAfter,       // e.g. 5 — top N full-width, rest in two columns
+  placeholder,
 }) {
   const [rawText,   setRawText]   = useState("");
   const [draftText, setDraftText] = useState("");
@@ -370,7 +394,7 @@ export default function RankingsPage({
           {preview.length > 0 && (
             <div style={{ marginTop: 20 }}>
               <div className="rankingsPreviewLabel">Live preview</div>
-              <RankingsList rankings={preview} showConference={showConference} />
+              <RankingsList rankings={preview} showConference={showConference} splitAfter={splitAfter} />
             </div>
           )}
         </div>
@@ -379,7 +403,7 @@ export default function RankingsPage({
       {loading ? (
         <div className="muted">Loading…</div>
       ) : rankings.length > 0 && !editing ? (
-        <RankingsList rankings={rankings} showConference={showConference} />
+        <RankingsList rankings={rankings} showConference={showConference} splitAfter={splitAfter} />
       ) : !editing ? (
         <div className="rankingsEmpty">
           <div className="rankingsEmptyIcon">🏆</div>

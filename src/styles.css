@@ -886,6 +886,24 @@ a.sponsorLogoWrap:hover {
   margin-bottom: 16px;
 }
 
+/* Two-column layout for ranks 6+ on desktop */
+.rankingsColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  margin-top: var(--gap);
+}
+@media (max-width: 700px) {
+  .rankingsColumns {
+    grid-template-columns: 1fr;
+  }
+}
+.rankingsCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* The ranked list container */
 .rankingsList {
   display: flex;
