@@ -761,6 +761,256 @@ audio { width: 100%; margin-top: 10px; }
 .scoreText { color: rgba(244,247,251,.78); font-weight: 850; font-size: 13px; }
 
 /* ============================================================
+   ARTICLES + SPONSORS GRID (articles wider, sponsors narrower)
+   ============================================================ */
+.gridArticles {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 860px) { .gridArticles { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   SPONSOR CARDS
+   ============================================================ */
+.sponsorCard {
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(43,212,106,.18);
+  background:
+    radial-gradient(400px 160px at 50% 30%, rgba(43,212,106,.06), transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.sponsorThankYou {
+  font-family: "Oswald", sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: .55;
+}
+
+/* Logo is THE card — nearly edge to edge, tall enough to dominate */
+.sponsorLogoWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 160px;
+  padding: 16px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid var(--border);
+  transition: background .15s, border-color .15s;
+  text-decoration: none;
+}
+a.sponsorLogoWrap:hover {
+  background: rgba(255,255,255,.11);
+  border-color: rgba(43,212,106,.30);
+}
+
+/* Logo fills the box — no arbitrary cap, let it breathe */
+.sponsorLogo {
+  width: 100%;
+  max-width: 100%;
+  max-height: 140px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.sponsorName {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  color: var(--muted);
+  opacity: .55;
+}
+
+/* ============================================================
+   TEAM NAME + RECORD ROW
+   ============================================================ */
+.teamNameRow {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* The W-L record next to the team name in the hero */
+.teamRecord {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(20px, 4vw, 30px);
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: rgba(244,247,251,.70);
+  white-space: nowrap;
+}
+
+/* W-L breakdown badge in the schedule card header */
+.recordBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Oswald", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+}
+.recordW   { color: #2bd46a; }
+.recordSep { color: var(--muted); margin: 0 1px; }
+.recordL   { color: #ff2d55; }
+
+/* ============================================================
+   RANKINGS PAGE
+   ============================================================ */
+.rankingsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* The ranked list container */
+.rankingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Each row */
+.rankingsRow {
+  display: grid;
+  grid-template-columns: 44px 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+  transition: background .12s;
+}
+.rankingsRow:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+}
+
+/* Top 3 rows get a slightly more prominent treatment */
+.rankingsRowTop {
+  border-color: rgba(255,255,255,.12);
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+  box-shadow: 0 4px 16px rgba(0,0,0,.20);
+}
+
+/* Rank number */
+.rankingsRank {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(18px, 3vw, 24px);
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
+/* Logo cell */
+.rankingsLogoWrap {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255,255,255,.92);
+  border-radius: 8px;
+  padding: 3px;
+}
+.rankingsLogo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  display: block;
+}
+.rankingsLogoPlaceholder {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid var(--border);
+}
+
+/* Team name */
+.rankingsName {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(14px, 2.5vw, 17px);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+/* Record */
+.rankingsRecord {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: .04em;
+}
+.rankingsRecordEmpty {
+  opacity: .35;
+}
+
+/* Live preview label */
+.rankingsPreviewLabel {
+  font-family: "Oswald", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: .75;
+  margin-bottom: 10px;
+}
+
+/* Empty state */
+.rankingsEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  border-radius: 18px;
+  border: 1px dashed var(--border);
+  background: rgba(255,255,255,.02);
+  text-align: center;
+}
+.rankingsEmptyIcon { font-size: 48px; opacity: .5; }
+.rankingsEmptyText {
+  font-family: "Oswald", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .footer {
