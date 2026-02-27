@@ -837,6 +837,124 @@ a.sponsorLogoWrap:hover {
 }
 
 /* ============================================================
+   TEAM NAME + RECORD ROW
+   ============================================================ */
+.teamNameRow {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* The W-L record next to the team name in the hero */
+.teamRecord {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(20px, 4vw, 30px);
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: rgba(244,247,251,.70);
+  white-space: nowrap;
+}
+
+/* W-L breakdown badge in the schedule card header */
+.recordBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Oswald", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+}
+.recordW   { color: #2bd46a; }
+.recordSep { color: var(--muted); margin: 0 1px; }
+.recordL   { color: #ff2d55; }
+
+/* ============================================================
+   RANKINGS PAGE
+   ============================================================ */
+.rankingsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.rankingsOptionLabel {
+  font-family: "Oswald", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.rankingsDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.rankingsDivider::before,
+.rankingsDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* The rankings image display */
+.rankingsImageWrap {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.03);
+  box-shadow: var(--shadow-sm);
+}
+
+.rankingsImage {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 18px;
+}
+
+/* Empty state */
+.rankingsEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  border-radius: 18px;
+  border: 1px dashed var(--border);
+  background: rgba(255,255,255,.02);
+  text-align: center;
+}
+.rankingsEmptyIcon { font-size: 48px; opacity: .5; }
+.rankingsEmptyText {
+  font-family: "Oswald", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .footer {
