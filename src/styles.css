@@ -886,49 +886,79 @@ a.sponsorLogoWrap:hover {
   margin-bottom: 16px;
 }
 
-.rankingsOptionLabel {
+/* The ranked list container */
+.rankingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Each row */
+.rankingsRow {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+  transition: background .12s;
+}
+.rankingsRow:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+}
+
+/* Top 3 rows get a slightly more prominent treatment */
+.rankingsRowTop {
+  border-color: rgba(255,255,255,.12);
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+  box-shadow: 0 4px 16px rgba(0,0,0,.20);
+}
+
+/* Rank number */
+.rankingsRank {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(18px, 3vw, 24px);
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
+/* Team name */
+.rankingsName {
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(14px, 2.5vw, 18px);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+/* Record */
+.rankingsRecord {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: .04em;
+}
+.rankingsRecordEmpty {
+  opacity: .35;
+}
+
+/* Live preview label */
+.rankingsPreviewLabel {
   font-family: "Oswald", sans-serif;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: .10em;
+  letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.rankingsDivider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-.rankingsDivider::before,
-.rankingsDivider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-/* The rankings image display */
-.rankingsImageWrap {
-  width: 100%;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
-  box-shadow: var(--shadow-sm);
-}
-
-.rankingsImage {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 18px;
+  color: var(--accent);
+  opacity: .75;
+  margin-bottom: 10px;
 }
 
 /* Empty state */
