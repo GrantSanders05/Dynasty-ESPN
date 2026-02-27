@@ -72,6 +72,7 @@ const ESPN_ID = {
   "houston": 248,
   "bowling green": 189, "falcons": 189, "bgsu": 189,
   "akron": 2006, "zips": 2006,
+  "eastern michigan": 2199, "eagles": 2199, "emu": 2199,
   "army": 349,
   "navy": 2426,
   "air force": 2005,
