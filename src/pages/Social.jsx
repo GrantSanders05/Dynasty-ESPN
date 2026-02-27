@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import PostCard from "../components/PostCard.jsx";
 
-/**
- * Social (Supabase)
- * - Full nested replies (unlimited depth via parent_reply_id)
- * - Likes/dislikes on replies via reply_votes table
- * - Commish can delete any reply
- * - All existing post/vote/reply functionality preserved
- */
 const POSTS_TABLE = "social_posts";
 const VOTES_TABLE = "social_votes";
 const REPLIES_TABLE = "social_replies";
@@ -31,7 +24,7 @@ export default function Social({ supabase, user, isCommish }) {
   const [posts, setPosts] = useState([]);
   const [repliesByPostId, setRepliesByPostId] = useState({});
   const [myVotesByPostId, setMyVotesByPostId] = useState({});
-  const [myReplyVotes, setMyReplyVotes] = useState({});   // { [replyId]: 1 | -1 }
+  const [myReplyVotes, setMyReplyVotes] = useState({});
 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -80,12 +73,12 @@ export default function Social({ supabase, user, isCommish }) {
     const dislikes = {};
     const mine = {};
     for (const v of votes) {
-      if (v.value === 1) likes[v.post_id] = (likes[v.post_id] || 0) + 1;
+      if (v.value === 1)  likes[v.post_id]    = (likes[v.post_id]    || 0) + 1;
       if (v.value === -1) dislikes[v.post_id] = (dislikes[v.post_id] || 0) + 1;
       if (v.voter_key === voterKey) mine[v.post_id] = v.value;
     }
 
-    // Replies (all, not just top-level — we handle nesting in PostCard)
+    // Replies
     let replies = [];
     if (ids.length) {
       const r = await supabase
@@ -107,24 +100,21 @@ export default function Social({ supabase, user, isCommish }) {
       if (!rv.error) replyVotes = rv.data || [];
     }
 
-    // Tally reply likes/dislikes and track my votes
     const replyLikes = {};
     const replyDislikes = {};
     const myRV = {};
     for (const rv of replyVotes) {
-      if (rv.value === 1) replyLikes[rv.reply_id] = (replyLikes[rv.reply_id] || 0) + 1;
+      if (rv.value === 1)  replyLikes[rv.reply_id]    = (replyLikes[rv.reply_id]    || 0) + 1;
       if (rv.value === -1) replyDislikes[rv.reply_id] = (replyDislikes[rv.reply_id] || 0) + 1;
       if (rv.voter_key === voterKey) myRV[rv.reply_id] = rv.value;
     }
 
-    // Hydrate replies with their vote counts
     const hydratedReplies = replies.map((r) => ({
       ...r,
       likes: replyLikes[r.id] || 0,
       dislikes: replyDislikes[r.id] || 0,
     }));
 
-    // Group replies by post_id
     const grouped = {};
     for (const rep of hydratedReplies) {
       grouped[rep.post_id] = grouped[rep.post_id] || [];
@@ -176,16 +166,40 @@ export default function Social({ supabase, user, isCommish }) {
       await supabase.from(POSTS_TABLE).delete().eq("id", id);
       await supabase.from(VOTES_TABLE).delete().eq("post_id", id);
       await supabase.from(REPLIES_TABLE).delete().eq("post_id", id);
+      // Remove post from local state immediately
+      setPosts((prev) => prev.filter((p) => p.id !== id));
       flashNotice("Deleted.");
-      await loadSocial();
     } catch (e) {
       flashError(e?.message || "Delete failed.");
     }
   }
 
+  // ─── OPTIMISTIC VOTE ON A POST ───────────────────────────────────────────
   async function vote(postId, nextVote) {
     const current = myVotesByPostId[postId];
     const shouldRemove = current === nextVote;
+    const newVote = shouldRemove ? null : nextVote;
+
+    // 1. Update local state instantly — no flicker, no reload
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== postId) return p;
+        let { likes, dislikes } = p;
+
+        // Undo previous vote
+        if (current === 1)  likes    = Math.max(0, likes - 1);
+        if (current === -1) dislikes = Math.max(0, dislikes - 1);
+
+        // Apply new vote
+        if (!shouldRemove && nextVote === 1)  likes    += 1;
+        if (!shouldRemove && nextVote === -1) dislikes += 1;
+
+        return { ...p, likes, dislikes };
+      })
+    );
+    setMyVotesByPostId((prev) => ({ ...prev, [postId]: newVote }));
+
+    // 2. Sync with database in the background
     try {
       await supabase.from(VOTES_TABLE).delete().eq("post_id", postId).eq("voter_key", voterKey);
       if (!shouldRemove) {
@@ -196,13 +210,86 @@ export default function Social({ supabase, user, isCommish }) {
         });
         if (error) throw error;
       }
-      await loadSocial();
     } catch (e) {
-      flashError(e?.message || "Reaction failed.");
+      // Roll back local state if DB write failed
+      flashError("Reaction failed — please try again.");
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          let { likes, dislikes } = p;
+          if (!shouldRemove && nextVote === 1)  likes    = Math.max(0, likes - 1);
+          if (!shouldRemove && nextVote === -1) dislikes = Math.max(0, dislikes - 1);
+          if (current === 1)  likes    += 1;
+          if (current === -1) dislikes += 1;
+          return { ...p, likes, dislikes };
+        })
+      );
+      setMyVotesByPostId((prev) => ({ ...prev, [postId]: current }));
     }
   }
 
-  // Top-level reply to a post
+  // ─── OPTIMISTIC VOTE ON A REPLY ──────────────────────────────────────────
+  async function voteReply(replyId, nextVote) {
+    // Find which post this reply belongs to
+    let ownerPostId = null;
+    for (const [pid, reps] of Object.entries(repliesByPostId)) {
+      if (reps.some((r) => r.id === replyId)) { ownerPostId = pid; break; }
+    }
+
+    const current = myReplyVotes[replyId];
+    const shouldRemove = current === nextVote;
+    const newVote = shouldRemove ? null : nextVote;
+
+    // 1. Update local reply state instantly
+    setMyReplyVotes((prev) => ({ ...prev, [replyId]: newVote }));
+    if (ownerPostId) {
+      setRepliesByPostId((prev) => ({
+        ...prev,
+        [ownerPostId]: prev[ownerPostId].map((r) => {
+          if (r.id !== replyId) return r;
+          let { likes, dislikes } = r;
+          if (current === 1)  likes    = Math.max(0, likes - 1);
+          if (current === -1) dislikes = Math.max(0, dislikes - 1);
+          if (!shouldRemove && nextVote === 1)  likes    += 1;
+          if (!shouldRemove && nextVote === -1) dislikes += 1;
+          return { ...r, likes, dislikes };
+        }),
+      }));
+    }
+
+    // 2. Sync with database in the background
+    try {
+      await supabase.from(REPLY_VOTES_TABLE).delete().eq("reply_id", replyId).eq("voter_key", voterKey);
+      if (!shouldRemove) {
+        const { error } = await supabase.from(REPLY_VOTES_TABLE).insert({
+          reply_id: replyId,
+          voter_key: voterKey,
+          value: nextVote,
+        });
+        if (error) throw error;
+      }
+    } catch (e) {
+      // Roll back
+      flashError("Reaction failed — please try again.");
+      setMyReplyVotes((prev) => ({ ...prev, [replyId]: current }));
+      if (ownerPostId) {
+        setRepliesByPostId((prev) => ({
+          ...prev,
+          [ownerPostId]: prev[ownerPostId].map((r) => {
+            if (r.id !== replyId) return r;
+            let { likes, dislikes } = r;
+            if (!shouldRemove && nextVote === 1)  likes    = Math.max(0, likes - 1);
+            if (!shouldRemove && nextVote === -1) dislikes = Math.max(0, dislikes - 1);
+            if (current === 1)  likes    += 1;
+            if (current === -1) dislikes += 1;
+            return { ...r, likes, dislikes };
+          }),
+        }));
+      }
+    }
+  }
+
+  // ─── REPLIES (still need a reload since they add new content) ────────────
   async function reply(postId, displayName, content) {
     if (!content.trim()) return;
     const { error } = await supabase.from(REPLIES_TABLE).insert({
@@ -218,7 +305,6 @@ export default function Social({ supabase, user, isCommish }) {
     await loadSocial();
   }
 
-  // Nested reply to an existing reply
   async function replyToReply(postId, parentReplyId, displayName, content) {
     if (!content.trim()) return;
     const { error } = await supabase.from(REPLIES_TABLE).insert({
@@ -234,38 +320,16 @@ export default function Social({ supabase, user, isCommish }) {
     await loadSocial();
   }
 
-  // Delete a single reply (commish only)
   async function deleteReply(replyId) {
     if (!isCommish) return;
     if (!confirm("Delete this reply?")) return;
     try {
-      // Cascade handles child replies via DB foreign key
       const { error } = await supabase.from(REPLIES_TABLE).delete().eq("id", replyId);
       if (error) throw error;
       flashNotice("Reply deleted.");
       await loadSocial();
     } catch (e) {
       flashError(e?.message || "Delete failed.");
-    }
-  }
-
-  // Like/dislike a reply
-  async function voteReply(replyId, nextVote) {
-    const current = myReplyVotes[replyId];
-    const shouldRemove = current === nextVote;
-    try {
-      await supabase.from(REPLY_VOTES_TABLE).delete().eq("reply_id", replyId).eq("voter_key", voterKey);
-      if (!shouldRemove) {
-        const { error } = await supabase.from(REPLY_VOTES_TABLE).insert({
-          reply_id: replyId,
-          voter_key: voterKey,
-          value: nextVote,
-        });
-        if (error) throw error;
-      }
-      await loadSocial();
-    } catch (e) {
-      flashError(e?.message || "Reaction failed.");
     }
   }
 
@@ -293,7 +357,6 @@ export default function Social({ supabase, user, isCommish }) {
           <h2>Create Post</h2>
           <div className="muted" style={{ fontWeight: 800 }}>Anyone can post. Reactions use a browser-based voter key.</div>
         </div>
-
         <form onSubmit={addPost} className="form">
           <div className="row">
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" />
