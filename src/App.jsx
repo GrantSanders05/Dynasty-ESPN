@@ -9,6 +9,7 @@ import Home from "./pages/Home.jsx";
 import Social from "./pages/Social.jsx";
 import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
+import Rankings from "./pages/Rankings.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
 
@@ -192,6 +193,10 @@ export default function App() {
         <Route
           path="/podcast"
           element={<Podcast supabase={supabase} isCommish={isCommish} />}
+        />
+        <Route
+          path="/rankings"
+          element={<Rankings supabase={supabase} isCommish={isCommish} />}
         />
         <Route
           path="/social"
