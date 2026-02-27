@@ -1,18 +1,94 @@
 import React, { useEffect, useState } from "react";
 
-const RANKINGS_KEY = "rankings_image";
-const RANKINGS_BUCKET = "rankings";
+const RANKINGS_KEY = "rankings_text";
+
+/**
+ * Parses lines like:
+ *   "1. Alabama (8-0)"
+ *   "2. Georgia (7-1)"
+ *
+ * Also tolerant of:
+ *   "1 Alabama (8-0)"
+ *   "1. Alabama 8-0"
+ *   "Alabama (8-0)"  <- no number, uses line order
+ */
+function parseRankings(raw) {
+  const lines = (raw || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const results = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Strip leading rank number: "1." "1)" "1 "
+    const numMatch = line.match(/^(\d{1,2})[.):\s]\s*/);
+    const rank = numMatch ? parseInt(numMatch[1], 10) : i + 1;
+    const rest = numMatch ? line.slice(numMatch[0].length).trim() : line;
+
+    // Pull record in parens "(8-0)" or bare "8-0"
+    const recordParens = rest.match(/\((\d{1,3}-\d{1,3})\)/);
+    const recordBare   = rest.match(/\b(\d{1,3}-\d{1,3})\b/);
+    const record = recordParens ? recordParens[1] : recordBare ? recordBare[1] : null;
+
+    // Team name = everything before the record
+    let name = rest;
+    if (recordParens) {
+      name = rest.slice(0, rest.indexOf(recordParens[0])).trim();
+    } else if (recordBare) {
+      name = rest.slice(0, rest.indexOf(recordBare[0])).trim();
+    }
+    name = name.replace(/[().,]+$/, "").trim();
+
+    if (!name) continue;
+    results.push({ rank, name, record });
+  }
+
+  results.sort((a, b) => a.rank - b.rank);
+  return results;
+}
+
+function getRankStyle(rank) {
+  if (rank === 1) return { color: "#FFD700" };
+  if (rank === 2) return { color: "#C0C0C0" };
+  if (rank === 3) return { color: "#cd7f32" };
+  return { color: null };
+}
+
+function RankingsList({ rankings }) {
+  return (
+    <div className="rankingsList">
+      {rankings.map((team, idx) => {
+        const { color } = getRankStyle(team.rank);
+        const isTop3 = team.rank <= 3;
+        return (
+          <div key={idx} className={`rankingsRow${isTop3 ? " rankingsRowTop" : ""}`}>
+            <div className="rankingsRank" style={color ? { color } : undefined}>
+              {team.rank}
+            </div>
+            <div className="rankingsName">{team.name}</div>
+            <div className={`rankingsRecord${!team.record ? " rankingsRecordEmpty" : ""}`}>
+              {team.record || "—"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Rankings({ supabase, isCommish }) {
-  const [imageUrl, setImageUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const [pasteUrl, setPasteUrl] = useState("");
-  const [file, setFile] = useState(null);
+  const [rawText, setRawText]   = useState("");
+  const [draftText, setDraftText] = useState("");
+  const [rankings, setRankings] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [editing, setEditing]   = useState(false);
 
   const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError]   = useState("");
 
   function flashNotice(msg) {
     setNotice(msg); setError("");
@@ -32,76 +108,10 @@ export default function Rankings({ supabase, isCommish }) {
       .select("value")
       .eq("key", RANKINGS_KEY)
       .maybeSingle();
-    setImageUrl(data?.value || null);
+    const text = data?.value || "";
+    setRawText(text);
+    setRankings(parseRankings(text));
     setLoading(false);
-  }
-
-  async function persistUrl(url) {
-    const { error: err } = await supabase
-      .from("site_settings")
-      .upsert(
-        { key: RANKINGS_KEY, value: url, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-    if (err) throw new Error(err.message);
-    setImageUrl(url);
-  }
-
-  async function saveUrl(e) {
-    e.preventDefault();
-    if (!isCommish) return flashError("Commissioner only.");
-    if (!pasteUrl.trim()) return flashError("Please paste an image URL.");
-    setSaving(true);
-    try {
-      await persistUrl(pasteUrl.trim());
-      setPasteUrl("");
-      flashNotice("Rankings updated.");
-    } catch (err) {
-      flashError(err.message || "Failed to save.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveFile(e) {
-    e.preventDefault();
-    if (!isCommish) return flashError("Commissioner only.");
-    if (!file) return flashError("Please choose an image file.");
-    setSaving(true);
-    try {
-      const ext = (file.name.split(".").pop() || "png").toLowerCase();
-      const path = `rankings/current.${ext}`;
-
-      // Upload with upsert so it overwrites the old one
-      const { error: upErr } = await supabase.storage
-        .from(RANKINGS_BUCKET)
-        .upload(path, file, { upsert: true, cacheControl: "60" });
-      if (upErr) throw new Error(upErr.message);
-
-      const { data: pub } = supabase.storage.from(RANKINGS_BUCKET).getPublicUrl(path);
-      // Bust cache by appending timestamp so browser always shows the new image
-      const url = `${pub.publicUrl}?t=${Date.now()}`;
-
-      await persistUrl(url);
-      setFile(null);
-      flashNotice("Rankings updated.");
-    } catch (err) {
-      flashError(err.message || "Upload failed.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function clearRankings() {
-    if (!isCommish) return;
-    if (!confirm("Remove the current rankings image?")) return;
-    try {
-      await persistUrl("");
-      setImageUrl(null);
-      flashNotice("Rankings cleared.");
-    } catch (err) {
-      flashError(err.message || "Failed to clear.");
-    }
   }
 
   useEffect(() => {
@@ -109,16 +119,77 @@ export default function Rankings({ supabase, isCommish }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function saveRankings(e) {
+    e.preventDefault();
+    if (!isCommish) return flashError("Commissioner only.");
+    if (!draftText.trim()) return flashError("Paste your rankings first.");
+    setSaving(true);
+    try {
+      const { error: err } = await supabase
+        .from("site_settings")
+        .upsert(
+          { key: RANKINGS_KEY, value: draftText.trim(), updated_at: new Date().toISOString() },
+          { onConflict: "key" }
+        );
+      if (err) throw new Error(err.message);
+      const parsed = parseRankings(draftText.trim());
+      setRawText(draftText.trim());
+      setRankings(parsed);
+      setDraftText("");
+      setEditing(false);
+      flashNotice(`Rankings updated — ${parsed.length} teams.`);
+    } catch (err) {
+      flashError(err.message || "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearRankings() {
+    if (!isCommish) return;
+    if (!confirm("Clear the current rankings?")) return;
+    await supabase
+      .from("site_settings")
+      .upsert(
+        { key: RANKINGS_KEY, value: "", updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+    setRawText(""); setRankings([]); setDraftText(""); setEditing(false);
+    flashNotice("Rankings cleared.");
+  }
+
+  function startEdit() {
+    setDraftText(rawText);
+    setEditing(true);
+  }
+
+  // Live preview while editing
+  const preview = editing ? parseRankings(draftText) : [];
+
   return (
     <div className="page">
       {/* Page header */}
       <div className="rankingsHeader">
         <div>
-          <h1 style={{ margin: 0 }}>Rankings</h1>
+          <h1 style={{ margin: 0 }}>Power Rankings</h1>
           <div className="muted" style={{ marginTop: 4, fontWeight: 700 }}>
-            Current dynasty power rankings
+            {rankings.length > 0
+              ? `Top ${rankings.length} · updated by commissioner`
+              : "No rankings posted yet"}
           </div>
         </div>
+        {isCommish && !editing && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn primary" onClick={startEdit} type="button">
+              {rankings.length ? "Update Rankings" : "Post Rankings"}
+            </button>
+            {rankings.length > 0 && (
+              <button className="btn danger" onClick={clearRankings} type="button">
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Toasts */}
@@ -129,98 +200,79 @@ export default function Rankings({ supabase, isCommish }) {
         </div>
       ) : null}
 
-      {/* Commissioner upload panel */}
-      {isCommish && (
+      {/* Commissioner editor */}
+      {isCommish && editing && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="cardHeader">
-            <h2>Update Rankings Image</h2>
+            <h2>{rankings.length ? "Update Rankings" : "Post Rankings"}</h2>
+            <span className="muted" style={{ fontSize: 12 }}>One team per line</span>
           </div>
 
-          {/* Option 1: Upload a file */}
-          <div style={{ marginBottom: 14 }}>
-            <div className="rankingsOptionLabel">Upload an image file</div>
-            <form className="form" onSubmit={saveFile}>
-              <div className="row">
-                <input
-                  className="input"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  disabled={saving}
-                />
-                <button className="btn primary" type="submit" disabled={saving || !file}>
-                  {saving ? "Uploading…" : "Upload"}
-                </button>
-              </div>
-            </form>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Expected format:{" "}
+            <code style={{ background: "rgba(255,255,255,.08)", padding: "2px 6px", borderRadius: 6 }}>
+              1. Alabama (8-0)
+            </code>
+            {" "}— numbers and records are optional, it figures it out.
           </div>
 
-          {/* Divider */}
-          <div className="rankingsDivider">
-            <span>or paste a URL</span>
-          </div>
-
-          {/* Option 2: Paste a URL */}
-          <div style={{ marginTop: 14 }}>
-            <div className="rankingsOptionLabel">Paste a public image URL</div>
-            <form className="form" onSubmit={saveUrl}>
-              <div className="row">
-                <input
-                  className="input"
-                  value={pasteUrl}
-                  onChange={(e) => setPasteUrl(e.target.value)}
-                  placeholder="https://i.imgur.com/example.png"
-                  disabled={saving}
-                />
-                <button className="btn primary" type="submit" disabled={saving || !pasteUrl.trim()}>
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Clear button */}
-          {imageUrl && (
-            <button
-              className="btn danger small"
-              style={{ marginTop: 14 }}
-              onClick={clearRankings}
-              type="button"
+          <form onSubmit={saveRankings} className="form">
+            <textarea
+              className="textarea"
+              rows={16}
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              placeholder={"1. Alabama (8-0)\n2. Georgia (7-1)\n3. Ohio State (7-1)\n..."}
               disabled={saving}
-            >
-              Remove current image
-            </button>
-          )}
+              style={{ fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}
+            />
+            <div className="row">
+              <button
+                className="btn primary"
+                type="submit"
+                disabled={saving || !draftText.trim()}
+              >
+                {saving
+                  ? "Saving…"
+                  : `Save Rankings${preview.length ? ` (${preview.length} teams)` : ""}`}
+              </button>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => { setEditing(false); setDraftText(""); }}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
 
-          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            Uploading requires a <strong>{RANKINGS_BUCKET}</strong> storage bucket in Supabase set to public.
-            Alternatively, upload your screenshot anywhere (Imgur, Discord, etc.) and paste the direct image link.
-          </div>
-        </div>
-      )}
-
-      {/* Rankings image display */}
-      {loading ? (
-        <div className="muted">Loading…</div>
-      ) : imageUrl ? (
-        <div className="rankingsImageWrap">
-          <img
-            src={imageUrl}
-            alt="Current power rankings"
-            className="rankingsImage"
-          />
-        </div>
-      ) : (
-        <div className="rankingsEmpty">
-          <div className="rankingsEmptyIcon">🏆</div>
-          <div className="rankingsEmptyText">No rankings posted yet.</div>
-          {isCommish && (
-            <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-              Upload a screenshot or paste an image URL above.
+          {/* Live preview */}
+          {preview.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <div className="rankingsPreviewLabel">Live preview</div>
+              <RankingsList rankings={preview} />
             </div>
           )}
         </div>
       )}
+
+      {/* Main rankings display */}
+      {loading ? (
+        <div className="muted">Loading…</div>
+      ) : rankings.length > 0 && !editing ? (
+        <RankingsList rankings={rankings} />
+      ) : !editing ? (
+        <div className="rankingsEmpty">
+          <div className="rankingsEmptyIcon">🏆</div>
+          <div className="rankingsEmptyText">No rankings posted yet</div>
+          {isCommish && (
+            <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+              Click "Post Rankings" above to get started.
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
