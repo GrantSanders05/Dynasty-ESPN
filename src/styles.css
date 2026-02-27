@@ -963,16 +963,36 @@ a.sponsorLogoWrap:hover {
   line-height: 1.2;
 }
 
-/* Record */
+/* Records cell — holds overall + optional conf record */
+.rankingsRecords {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+/* Overall record */
 .rankingsRecord {
   font-size: 13px;
   font-weight: 900;
   color: var(--muted);
-  white-space: nowrap;
   letter-spacing: .04em;
 }
-.rankingsRecordEmpty {
-  opacity: .35;
+.rankingsRecordEmpty { opacity: .35; }
+
+/* Conference record — slightly smaller, dimmer */
+.rankingsConfRecord {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  opacity: .65;
+  letter-spacing: .04em;
+}
+
+/* Narrower dropdown for rankings (only 2 items, no search needed) */
+.rankingsMenu {
+  width: min(240px, calc(100vw - 24px));
 }
 
 /* Live preview label */

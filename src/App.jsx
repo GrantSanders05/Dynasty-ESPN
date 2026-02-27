@@ -9,7 +9,8 @@ import Home from "./pages/Home.jsx";
 import Social from "./pages/Social.jsx";
 import Podcast from "./pages/Podcast.jsx";
 import Team from "./pages/Team.jsx";
-import Rankings from "./pages/Rankings.jsx";
+import Top25 from "./pages/Top25.jsx";
+import Big10Rankings from "./pages/Big10Rankings.jsx";
 
 const APP_TITLE = "CFB 26 DYNASTY NETWORK";
 
@@ -190,22 +191,11 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<Home supabase={supabase} isCommish={isCommish} />} />
-        <Route
-          path="/podcast"
-          element={<Podcast supabase={supabase} isCommish={isCommish} />}
-        />
-        <Route
-          path="/rankings"
-          element={<Rankings supabase={supabase} isCommish={isCommish} />}
-        />
-        <Route
-          path="/social"
-          element={<Social supabase={supabase} isCommish={isCommish} user={user} />}
-        />
-        <Route
-          path="/team/:slug"
-          element={<Team supabase={supabase} isCommish={isCommish} />}
-        />
+        <Route path="/podcast" element={<Podcast supabase={supabase} isCommish={isCommish} />} />
+        <Route path="/rankings/top25" element={<Top25 supabase={supabase} isCommish={isCommish} />} />
+        <Route path="/rankings/big10" element={<Big10Rankings supabase={supabase} isCommish={isCommish} />} />
+        <Route path="/social" element={<Social supabase={supabase} isCommish={isCommish} user={user} />} />
+        <Route path="/team/:slug" element={<Team supabase={supabase} isCommish={isCommish} />} />
       </Routes>
     </>
   );

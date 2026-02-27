@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 
 export default function Navbar({
   appTitle,
@@ -10,10 +10,12 @@ export default function Navbar({
   authSlot,
   authLoading,
 }) {
-  const [teamsOpen, setTeamsOpen]   = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [teamsOpen,    setTeamsOpen]    = useState(false);
+  const [rankingsOpen, setRankingsOpen] = useState(false);
+  const [mobileOpen,   setMobileOpen]   = useState(false);
   const [q, setQ] = useState("");
-  const dropdownRef = useRef(null);
+  const dropdownRef  = useRef(null);
+  const rankingsRef  = useRef(null);
 
   const teamLinks = useMemo(
     () => (teams || []).map((t) => ({ name: t.name, slug: t.slug })),
@@ -30,12 +32,13 @@ export default function Navbar({
     );
   }, [q, teamLinks]);
 
-  /* Close teams dropdown on outside click/touch */
+  /* Close dropdowns on outside click/touch */
   useEffect(() => {
     function handler(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setTeamsOpen(false);
-      }
+      if (rankingsRef.current && !rankingsRef.current.contains(e.target))
+        setRankingsOpen(false);
     }
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler, { passive: true });
@@ -47,6 +50,7 @@ export default function Navbar({
 
   function closeAll() {
     setTeamsOpen(false);
+    setRankingsOpen(false);
     setMobileOpen(false);
     setQ("");
   }
@@ -137,13 +141,40 @@ export default function Navbar({
           Podcast
         </NavLink>
 
-        <NavLink
-          className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
-          to="/rankings"
-          onClick={closeAll}
-        >
-          Rankings
-        </NavLink>
+        {/* Rankings dropdown */}
+        <div className="dropdown" ref={rankingsRef}>
+          <button
+            className={rankingsOpen ? "navBtn active" : "navBtn"}
+            onClick={() => setRankingsOpen((v) => !v)}
+            aria-expanded={rankingsOpen}
+            type="button"
+          >
+            Rankings ▾
+          </button>
+
+          {rankingsOpen && (
+            <div className="menu rankingsMenu" role="menu" aria-label="Rankings">
+              <div className="menuGrid">
+                <Link
+                  className="menuItem"
+                  to="/rankings/top25"
+                  onClick={closeAll}
+                >
+                  <span className="menuItemName">Top 25 Rankings</span>
+                  <span className="menuMeta">National</span>
+                </Link>
+                <Link
+                  className="menuItem"
+                  to="/rankings/big10"
+                  onClick={closeAll}
+                >
+                  <span className="menuItemName">Big 10 Rankings</span>
+                  <span className="menuMeta">Conference</span>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
 
         <NavLink
           className={({ isActive }) => (isActive ? "navBtn active" : "navBtn")}
