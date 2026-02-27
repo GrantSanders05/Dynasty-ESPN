@@ -929,24 +929,27 @@ a.sponsorLogoWrap:hover {
 
 /* Logo cell */
 .rankingsLogoWrap {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: rgba(255,255,255,.92);
+  border-radius: 8px;
+  padding: 3px;
 }
 .rankingsLogo {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
   display: block;
 }
 .rankingsLogoPlaceholder {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.07);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.10);
   border: 1px solid var(--border);
 }
 
