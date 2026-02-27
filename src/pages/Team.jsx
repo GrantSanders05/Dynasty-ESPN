@@ -1,18 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-
-/**
- * Team Page
- * - Sleeker hero with team vibe (bigger logo, primary/secondary glow)
- * - Schedule display: "@"/"vs." + W/L pill + score (from result)
- * - No functional changes to saving/editing/deleting
- */
 
 function formatResult(result) {
   const raw = (result || "").trim();
   if (!raw) return { wl: null, score: null, text: "" };
 
-  // Accept: "W 31-24", "L 17-21", "31-24 W", "W, 31-24"
   const m1 = raw.match(/^([WwLl])\s*[,:\-]?\s*([0-9]{1,3}\s*-\s*[0-9]{1,3})$/);
   if (m1) return { wl: m1[1].toUpperCase(), score: m1[2].replace(/\s+/g, ""), text: raw };
 
@@ -25,36 +17,44 @@ function formatResult(result) {
   return { wl: null, score: null, text: raw };
 }
 
+// Derive W-L record from games array
+function calcRecord(games) {
+  let w = 0, l = 0;
+  for (const g of games) {
+    const { wl } = formatResult(g.result);
+    if (wl === "W") w++;
+    else if (wl === "L") l++;
+  }
+  return { w, l, str: `${w}-${l}` };
+}
+
 export default function Team({ supabase, isCommish }) {
   const { slug } = useParams();
   const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Messages
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  // Key players (create)
+  // Key players
   const [players, setPlayers] = useState([]);
   const [pos, setPos] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [ovr, setOvr] = useState("");
   const posRef = useRef(null);
 
-  // Key players (edit)
   const [editingPlayerId, setEditingPlayerId] = useState(null);
   const [editPos, setEditPos] = useState("");
   const [editPlayerName, setEditPlayerName] = useState("");
   const [editOvr, setEditOvr] = useState("");
 
-  // Schedule (create)
+  // Schedule
   const [games, setGames] = useState([]);
   const [week, setWeek] = useState("");
   const [opponent, setOpponent] = useState("");
   const [homeAway, setHomeAway] = useState("HOME");
   const [result, setResult] = useState("");
 
-  // Schedule (edit)
   const [editingGameId, setEditingGameId] = useState(null);
   const [editWeek, setEditWeek] = useState("");
   const [editOpponent, setEditOpponent] = useState("");
@@ -62,6 +62,9 @@ export default function Team({ supabase, isCommish }) {
   const [editResult, setEditResult] = useState("");
 
   const canEdit = !!isCommish;
+
+  // Auto-calculate record from games
+  const record = useMemo(() => calcRecord(games), [games]);
 
   function flashNotice(msg) {
     setNotice(msg);
@@ -132,10 +135,7 @@ export default function Team({ supabase, isCommish }) {
     });
 
     if (insertErr) return flashError(insertErr.message || "Failed to add player.");
-
-    setPos("");
-    setPlayerName("");
-    setOvr("");
+    setPos(""); setPlayerName(""); setOvr("");
     flashNotice("Player saved.");
     await load();
     posRef.current?.focus?.();
@@ -149,14 +149,11 @@ export default function Team({ supabase, isCommish }) {
   }
   function cancelEditPlayer() {
     setEditingPlayerId(null);
-    setEditPos("");
-    setEditPlayerName("");
-    setEditOvr("");
+    setEditPos(""); setEditPlayerName(""); setEditOvr("");
   }
   async function saveEditPlayer(e) {
     e?.preventDefault?.();
-    if (!canEdit) return;
-    if (!editingPlayerId) return;
+    if (!canEdit || !editingPlayerId) return;
 
     const p = editPos.trim();
     const n = editPlayerName.trim();
@@ -172,7 +169,6 @@ export default function Team({ supabase, isCommish }) {
       .eq("id", editingPlayerId);
 
     if (updErr) return flashError(updErr.message || "Failed to update player.");
-
     flashNotice("Player updated.");
     cancelEditPlayer();
     await load();
@@ -209,11 +205,7 @@ export default function Team({ supabase, isCommish }) {
     });
 
     if (insertErr) return flashError(insertErr.message || "Failed to add game.");
-
-    setWeek("");
-    setOpponent("");
-    setHomeAway("HOME");
-    setResult("");
+    setWeek(""); setOpponent(""); setHomeAway("HOME"); setResult("");
     flashNotice("Game saved.");
     await load();
   }
@@ -227,16 +219,12 @@ export default function Team({ supabase, isCommish }) {
   }
   function cancelEditGame() {
     setEditingGameId(null);
-    setEditWeek("");
-    setEditOpponent("");
-    setEditHomeAway("HOME");
-    setEditResult("");
+    setEditWeek(""); setEditOpponent(""); setEditHomeAway("HOME"); setEditResult("");
   }
 
   async function saveEditGame(e) {
     e?.preventDefault?.();
-    if (!canEdit) return;
-    if (!editingGameId) return;
+    if (!canEdit || !editingGameId) return;
 
     const w = String(editWeek).trim();
     const opp = editOpponent.trim();
@@ -252,7 +240,6 @@ export default function Team({ supabase, isCommish }) {
       .eq("id", editingGameId);
 
     if (updErr) return flashError(updErr.message || "Failed to update game.");
-
     flashNotice("Game updated.");
     cancelEditGame();
     await load();
@@ -289,11 +276,7 @@ export default function Team({ supabase, isCommish }) {
   }
 
   if (loading) {
-    return (
-      <div className="teamPage">
-        <div className="card">Loading…</div>
-      </div>
-    );
+    return <div className="teamPage"><div className="card">Loading…</div></div>;
   }
 
   if (!team) {
@@ -306,14 +289,15 @@ export default function Team({ supabase, isCommish }) {
     );
   }
 
-  // Team colors if available; safe fallback
-  const primary = team.primary_color || team.primary || team.color_primary || null;
+  const primary   = team.primary_color   || team.primary   || team.color_primary   || null;
   const secondary = team.secondary_color || team.secondary || team.color_secondary || null;
-
   const heroStyle = {
-    "--teamPrimary": primary || undefined,
+    "--teamPrimary":   primary   || undefined,
     "--teamSecondary": secondary || undefined,
   };
+
+  const hasGames = games.length > 0;
+  const hasResults = games.some((g) => formatResult(g.result).wl);
 
   return (
     <div className="teamPage">
@@ -328,6 +312,7 @@ export default function Team({ supabase, isCommish }) {
         </div>
       ) : null}
 
+      {/* ── Team Hero ── */}
       <div className="teamHero" style={heroStyle}>
         <div className="teamHeroHeader">
           <div className="teamLogoHero">
@@ -339,9 +324,20 @@ export default function Team({ supabase, isCommish }) {
           </div>
 
           <div className="teamHeroText">
-            <h1 className="teamNameBig">{team.name}</h1>
+            {/* Team name + record side by side */}
+            <div className="teamNameRow">
+              <h1 className="teamNameBig">{team.name}</h1>
+              {hasResults && (
+                <span className="teamRecord">{record.str}</span>
+              )}
+            </div>
             <div className="teamMeta">
               {isCommish ? <span className="pill">COMMISH</span> : null}
+              {team.coach ? (
+                <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>
+                  Coach: {team.coach}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -351,14 +347,14 @@ export default function Team({ supabase, isCommish }) {
         </div>
       </div>
 
+      {/* ── Key Players + Schedule ── */}
       <div className="grid">
+        {/* Key Players */}
         <div className="card">
           <div className="cardHeader">
             <h2>Key Players</h2>
             {canEdit ? null : <span className="muted">Read only</span>}
           </div>
-
-          <div className="muted" style={{ marginBottom: 10 }}>Spotlight players for the team page.</div>
 
           {players.length ? (
             <div className="list">
@@ -396,7 +392,7 @@ export default function Team({ supabase, isCommish }) {
 
           {canEdit ? (
             <div className="listItem" style={{ marginTop: 10 }}>
-              <div style={{ fontFamily: "Oswald, Inter, system-ui, sans-serif", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
                 Add Player
               </div>
               <form className="form" onSubmit={addPlayer} style={{ marginTop: 10 }}>
@@ -411,12 +407,18 @@ export default function Team({ supabase, isCommish }) {
           ) : null}
         </div>
 
+        {/* Schedule */}
         <div className="card">
           <div className="cardHeader">
             <h2>Schedule</h2>
-            {canEdit ? null : <span className="muted">Read only</span>}
+            {hasResults ? (
+              <span className="recordBadge">
+                <span className="recordW">{record.w}W</span>
+                <span className="recordSep">-</span>
+                <span className="recordL">{record.l}L</span>
+              </span>
+            ) : canEdit ? null : <span className="muted">Read only</span>}
           </div>
-          <div className="muted" style={{ marginBottom: 10 }}>Your weekly slate.</div>
 
           {games.length ? (
             <div className="list">
@@ -431,16 +433,14 @@ export default function Team({ supabase, isCommish }) {
                           <option value="HOME">HOME</option>
                           <option value="AWAY">AWAY</option>
                         </select>
-                        <input className="input" value={editResult} onChange={(e) => setEditResult(e.target.value)} placeholder="Result (optional) e.g. W 31-24" />
+                        <input className="input" value={editResult} onChange={(e) => setEditResult(e.target.value)} placeholder="e.g. W 31-24" />
                         <button className="btn primary" type="submit">Save</button>
                         <button className="btn" type="button" onClick={cancelEditGame}>Cancel</button>
                       </div>
                     </form>
                   ) : (
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <div style={{ fontWeight: 950 }}>
-                        {renderGameLine(g)}
-                      </div>
+                      <div style={{ flex: 1 }}>{renderGameLine(g)}</div>
                       {canEdit ? (
                         <div className="row" style={{ flex: "0 0 auto", gap: 8 }}>
                           <button className="btn small" onClick={() => startEditGame(g)} type="button">Edit</button>
@@ -458,7 +458,7 @@ export default function Team({ supabase, isCommish }) {
 
           {canEdit ? (
             <div className="listItem" style={{ marginTop: 10 }}>
-              <div style={{ fontFamily: "Oswald, Inter, system-ui, sans-serif", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
                 Add Game
               </div>
               <form className="form" onSubmit={addGame} style={{ marginTop: 10 }}>
