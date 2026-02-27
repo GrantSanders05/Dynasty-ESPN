@@ -65,11 +65,13 @@ export default function Home({ supabase, isCommish }) {
   }
 
   async function persistSponsors(list) {
-    await supabase.from("site_settings").upsert({
-      key: SPONSORS_SETTING_KEY,
-      value: JSON.stringify(list),
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert(
+        { key: SPONSORS_SETTING_KEY, value: JSON.stringify(list), updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+    if (error) throw new Error(error.message);
     setSponsors(list);
   }
 
@@ -303,8 +305,8 @@ export default function Home({ supabase, isCommish }) {
         <div className="muted" style={{ marginTop: 12 }}>Loading…</div>
       ) : (
         <>
-          {/* ── Row 1: Articles (left) + Sponsors (right) ── */}
-          <div className="grid2">
+          {/* ── Row 1: Articles (left, wider) + Sponsors (right, narrower) ── */}
+          <div className="gridArticles">
 
             {/* Articles */}
             <div>
