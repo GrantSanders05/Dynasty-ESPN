@@ -141,8 +141,11 @@ const ESPN_ID = {
   "knights": 2116,
   "houston": 248,
 
-  // Other notable
-  "notre dame": 87,
+  "bowling green": 189,
+  "falcons": 189,
+  "bgsu": 189,
+  "akron": 2006,
+  "zips": 2006,
   "army": 349,
   "navy": 2426,
   "air force": 2005,
