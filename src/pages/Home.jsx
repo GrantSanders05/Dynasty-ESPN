@@ -355,11 +355,10 @@ export default function Home({ supabase, isCommish }) {
                         </div>
                       )}
                       <div className="sponsorName">{s.name}</div>
-
                       {isCommish && (
                         <button
-                          className="btn danger small"
-                          style={{ marginTop: 10 }}
+                          className="btn danger tiny"
+                          style={{ opacity: .6, marginTop: 2 }}
                           onClick={() => deleteSponsor(s.id)}
                           type="button"
                         >
